@@ -1,0 +1,70 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>WikipediaEntities</groupId>
+	<artifactId>WikipediaEntities</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<description>Derive named entities from Wikipedia</description>
+	<build>
+		<plugins>
+			<plugin>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.1</version>
+				<configuration>
+					<source>1.7</source>
+					<target>1.7</target>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>appassembler-maven-plugin</artifactId>
+				<version>1.3</version>
+				<configuration>
+					<programs>
+						<program>
+							<mainClass>com.github.kno10.wikipediaentities.ParseWikipedia</mainClass>
+							<name>parse-wikipedia</name>
+						</program>
+					</programs>
+					<platforms>
+						<platform>unix</platform>
+					</platforms>
+				</configuration>
+				<executions>
+					<execution>
+						<id>assemble</id>
+						<goals>
+							<goal>assemble</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+	<name>Wikipedia Entities</name>
+	<url>https://github.com/kno10/WikipediaEntities</url>
+	<scm>
+		<url>git@github.com:kno10/WikipediaEntities.git</url>
+	</scm>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.0</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-compress</artifactId>
+			<version>1.8.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.lucene</groupId>
+			<artifactId>lucene-analyzers</artifactId>
+			<version>3.6.2</version>
+		</dependency>
+	</dependencies>
+	<issueManagement>
+		<url>https://github.com/kno10/WikipediaEntities/issues</url>
+	</issueManagement>
+</project>
