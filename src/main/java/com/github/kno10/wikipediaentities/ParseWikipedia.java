@@ -25,7 +25,7 @@ public class ParseWikipedia {
 	protected Handler handler;
 
 	/** Step size for progress reporting */
-	static int STEP = 10000;
+	static int STEP = 10;
 
 	/** Title attribute for redirects */
 	static final QName titleqname = new QName("title");
@@ -33,7 +33,7 @@ public class ParseWikipedia {
 	/** Pattern for recognizing redirects */
 	Matcher redirmatcher = Pattern
 			.compile(
-					"#REDIRECT:?\\s*\\[\\[\\s*(?:([^\\]\\[\\|]*)\\s*\\|\\s*)?([^\\]\\[\\|]*)\\s*\\]\\]",
+					"#REDIRECT\\s*:?\\s*\\[\\[\\s*(?:([^\\]\\[\\|]*)\\s*\\|\\s*)?([^\\]\\[\\|]*)(?:#.*?)?\\s*\\]\\]",
 					Pattern.CASE_INSENSITIVE).matcher("");
 
 	/**
@@ -70,6 +70,7 @@ public class ParseWikipedia {
 										c, (c * 1000. / (now - start)),
 										(STEP * 1000. / (now - prev)));
 						prev = now;
+						if (c == 20*STEP) STEP *= 10;
 					}
 					// if (c == 100000000) break;
 				}
@@ -114,6 +115,7 @@ public class ParseWikipedia {
 		// Ignore non-main pages
 		if (skip || title == null || text == null)
 			return;
+		title = Util.removeEntities(title);
 		// Skip boring "list of" pages
 		if (title.startsWith("List of "))
 			return;
@@ -124,6 +126,7 @@ public class ParseWikipedia {
 				g1 = g1 != null ? g1 : g2;
 				redirect = Util.normalizeLink(g1, g2);
 			} else {
+				redirect = Util.removeEntities(redirect);
 				System.err.println("No redirect in " + title + ": " + text);
 			}
 			handler.redirect(title, redirect);
@@ -139,7 +142,7 @@ public class ParseWikipedia {
 			throws XMLStreamException {
 		// Chances are that we'll only need one string.
 		String ret = null;
-		StringBuilder buf = null;
+		StringBuilder buf = null; // Fallback to a string builder
 		while (eventReader.hasNext()) {
 			XMLEvent event = eventReader.nextEvent();
 			if (event.isEndElement())

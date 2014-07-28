@@ -45,18 +45,19 @@ public class LinkCollector extends AbstractHandler {
 	/**
 	 * Finish the current entry, proceed to the next.
 	 * 
-	 * @param next Next entry name
+	 * @param next
+	 *            Next entry name
 	 */
 	private void nextEntry(String next) {
 		// Write and close previous entry
-		if (cur == null)
-			return;
-		writer.append(cur);
-		List<String> t = new ArrayList<>(targets);
-		Collections.sort(t);
-		for (String s : t)
-			writer.append('\t').append(s);
-		writer.append('\n');
+		if (cur != null) {
+			writer.append(cur);
+			List<String> t = new ArrayList<>(targets);
+			Collections.sort(t);
+			for (String s : t)
+				writer.append('\t').append(s);
+			writer.append('\n');
+		}
 		cur = next;
 		targets.clear();
 	}

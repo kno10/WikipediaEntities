@@ -49,7 +49,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 
 	/** Match links, which are not nested. */
 	private Matcher linkMatcher = Pattern.compile(
-			"\\[\\[(?:([^\\]\\[\\|:]*)\\s*\\|\\s*)?([^\\]\\[\\|:]*)\\]\\]")
+			"\\[\\[(?:([^\\]\\[\\|:]*)\\s*\\|\\s*)?([^\\]\\[\\|:]*)(?:#.*?)?\\]\\]")
 			.matcher("");
 
 	/** More cruft to remove */

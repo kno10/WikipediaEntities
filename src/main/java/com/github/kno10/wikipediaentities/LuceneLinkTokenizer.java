@@ -55,14 +55,20 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	public void linkDetected(String title, String label, String target) {
 		// Normalize the link text.
 		try {
-			StringBuilder buf = new StringBuilder();
+			StringBuilder buf = null;
 			tokenizer.reset(new StringReader(label));
 			stream.reset();
 			while (stream.incrementToken()) {
-				if (buf.length() > 0)
+				if (termAtt.length() <= 0)
+					continue;
+				if (buf == null)
+					buf = new StringBuilder();
+				else
 					buf.append(' ');
 				buf.append(termAtt.buffer(), 0, termAtt.length());
 			}
+			if (buf == null)
+				return;
 			label = buf.toString();
 			Set<String> seen = links.get(label);
 			if (seen == null) {

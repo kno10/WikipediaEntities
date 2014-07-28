@@ -39,7 +39,7 @@ public class Util {
 							new FileOutputStream(out)));
 		return new PrintStream(new FileOutputStream(out));
 	}
-
+	
 	/**
 	 * Fast replace all HTML entities, because Apache commons
 	 * {@link StringEscapeUtils#unescapeHtml4(String)} is unbearably slow.
