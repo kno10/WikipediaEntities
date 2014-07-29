@@ -48,8 +48,9 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			.matcher("");
 
 	/** Match links, which are not nested. */
-	private Matcher linkMatcher = Pattern.compile(
-			"\\[\\[(?:([^\\]\\[\\|:]*)\\s*\\|\\s*)?([^\\]\\[\\|:]*)(?:#.*?)?\\]\\]")
+	private Matcher linkMatcher = Pattern
+			.compile(
+					"\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*([^\\]\\[\\#]*))?(?:#.*?)?\\s*\\]\\]")
 			.matcher("");
 
 	/** More cruft to remove */
@@ -61,15 +62,21 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 	/** Lucene index writer */
 	private IndexWriter index;
 
+	/** Handler to send link detected events to. */
+	Handler handler;
+
 	/**
 	 * Constructor
 	 * 
 	 * @param dir
 	 *            Directory for Lucene index.
+	 * @param handler
+	 *            Handlers for detected links.
 	 * @throws IOException
 	 *             on errors opening the lucene index
 	 */
-	public LuceneWikipediaIndexer(String dir) throws IOException {
+	public LuceneWikipediaIndexer(String dir, Handler handler)
+			throws IOException {
 		Set<String> skip = new HashSet<>();
 		skip.add(WikipediaTokenizer.EXTERNAL_LINK_URL);
 		tokenizer = new WikipediaTokenizer(null,
@@ -81,6 +88,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_35,
 				new StandardAnalyzer(Version.LUCENE_35));
 		index = new IndexWriter(ldir, config);
+		this.handler = handler;
 	}
 
 	@Override
@@ -101,7 +109,16 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			linkMatcher.reset(text);
 			while (linkMatcher.find()) {
 				buf.append(text, pos, linkMatcher.start());
-				String labl = linkMatcher.group(2).replace('\n', ' ');
+				String targ = linkMatcher.group(1);
+				String labl = linkMatcher.group(2);
+				if (labl == null)
+					labl = targ;
+				labl = labl.replace('\n', ' ');
+				targ = Util.normalizeLink(targ.replace('\n', ' '));
+				if (targ != null)
+					handler.linkDetected(title, labl != null ? labl : targ,
+							targ);
+
 				buf.append(labl);
 				pos = linkMatcher.end();
 			}

@@ -25,6 +25,9 @@ import org.apache.lucene.store.FSDirectory;
 public class AnalyzeLinks {
 	private static final int MINIMUM_MENTIONS = 100;
 
+	/** Collect unique strings. */
+	Unique<String> unique = new Unique<>();
+
 	private void run() throws IOException {
 		Map<String, String> redirects = loadRedirects(Config
 				.get("redirects.output"));
@@ -113,7 +116,7 @@ public class AnalyzeLinks {
 			while ((line = r.readLine()) != null) {
 				String[] s = line.split("\t");
 				assert (s.length == 2);
-				redirects.put(s[0].intern(), s[1].intern());
+				redirects.put(unique.addOrGet(s[0]), unique.addOrGet(s[1]));
 				++c;
 				if (c % 1000000 == 0)
 					System.err.format("Loading redirects %d...\n", c);
@@ -134,9 +137,9 @@ public class AnalyzeLinks {
 				String[] s = line.split("\t");
 				for (int i = 1; i < s.length; i++) {
 					String targ = redirects.get(s[i]);
-					l.add(targ != null ? targ : s[i].intern());
+					l.add(targ != null ? targ : unique.addOrGet(s[i]));
 				}
-				links.put(s[0].intern(), new ArrayList<>(l));
+				links.put(unique.addOrGet(s[0]), new ArrayList<>(l));
 				l.clear();
 				++c;
 				if (c % 1000000 == 0)

@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.StringWriter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
 
 import org.apache.commons.compress.compressors.CompressorException;
@@ -139,11 +141,9 @@ public class Util {
 	 *
 	 * @param targ
 	 *            Link target
-	 * @param labl
-	 *            Link label, to use when no target was given
 	 * @return Normalized link (anchor removed, first char uppercase)
 	 */
-	public static String normalizeLink(String targ, String labl) {
+	public static String normalizeLink(String targ) {
 		if (targ.length() == 0)
 			return null;
 		int pos = targ.indexOf('#');
@@ -164,5 +164,12 @@ public class Util {
 		System.err.println(removeEntities("&lt;&gt;"));
 		System.err.println(removeEntities("a&b"));
 		System.err.println(removeEntities("&"));
+
+		Matcher redirmatcher = Pattern
+				.compile(
+						"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*[^\\]\\[\\#]*)?(?:#.*?)?\\s*\\]\\]",
+						Pattern.CASE_INSENSITIVE).matcher("");
+		
+		redirmatcher.reset("#REDIRECT [[A♯ (musical note)|A{{music|sharp}}]]");
 	}
 }

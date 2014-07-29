@@ -33,7 +33,7 @@ public class ParseWikipedia {
 	/** Pattern for recognizing redirects */
 	Matcher redirmatcher = Pattern
 			.compile(
-					"#REDIRECT\\s*:?\\s*\\[\\[\\s*(?:([^\\]\\[\\|]*)\\s*\\|\\s*)?([^\\]\\[\\|]*)(?:#.*?)?\\s*\\]\\]",
+					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*[^\\]\\[\\#]*)?(?:#.*?)?\\s*\\]\\]",
 					Pattern.CASE_INSENSITIVE).matcher("");
 
 	/**
@@ -70,7 +70,8 @@ public class ParseWikipedia {
 										c, (c * 1000. / (now - start)),
 										(STEP * 1000. / (now - prev)));
 						prev = now;
-						if (c == 20*STEP) STEP *= 10;
+						if (c == 20 * STEP)
+							STEP *= 10;
 					}
 					// if (c == 100000000) break;
 				}
@@ -122,9 +123,8 @@ public class ParseWikipedia {
 		if (redirect != null) {
 			redirmatcher.reset(text);
 			if (redirmatcher.find()) {
-				String g1 = redirmatcher.group(1), g2 = redirmatcher.group(2);
-				g1 = g1 != null ? g1 : g2;
-				redirect = Util.normalizeLink(g1, g2);
+				String g1 = redirmatcher.group(1);
+				redirect = Util.normalizeLink(g1);
 			} else {
 				redirect = Util.removeEntities(redirect);
 				System.err.println("No redirect in " + title + ": " + text);
@@ -171,11 +171,8 @@ public class ParseWikipedia {
 			HandlerList h1 = new HandlerList(), h2 = new HandlerList();
 			ParseWikipedia l = new ParseWikipedia(Config.get("loader.source"),
 					h1);
-			WikipediaLinkExtractor le = new WikipediaLinkExtractor(h2);
-
-			h1.add(le);
 			h1.add(new RedirectCollector(Config.get("redirects.output")));
-			h1.add(new LuceneWikipediaIndexer(Config.get("indexer.dir")));
+			h1.add(new LuceneWikipediaIndexer(Config.get("indexer.dir"), h2));
 			h2.add(new LinkCollector(Config.get("links.output")));
 			h2.add(new LuceneLinkTokenizer(Config.get("linktext.output")));
 			l.run();
