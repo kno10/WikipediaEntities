@@ -39,7 +39,7 @@ public class Util {
 							new FileOutputStream(out)));
 		return new PrintStream(new FileOutputStream(out));
 	}
-	
+
 	/**
 	 * Fast replace all HTML entities, because Apache commons
 	 * {@link StringEscapeUtils#unescapeHtml4(String)} is unbearably slow.
@@ -57,13 +57,20 @@ public class Util {
 		try {
 			StringWriter buf = new StringWriter();
 			int s = 0;
-			int end = text.length() - 1;
+			final int end = text.length();
 			while (i >= 0 && i < end) {
 				buf.append(text, s, i);
-				s = i + StringEscapeUtils.UNESCAPE_HTML4.translate(//
+				s = StringEscapeUtils.UNESCAPE_HTML4.translate(//
 						text, i, buf);
-				i = text.indexOf('&', s + 1);
+				if (s == 0) {
+					buf.append('&'); // No match
+					++s;
+				}
+				s += i;
+				i = text.indexOf('&', s);
 			}
+			if (s < text.length())
+				buf.append(text, s, end);
 			return buf.toString();
 		} catch (IOException e) {
 			// This should be unreachable, unless we run out of memory.
@@ -148,5 +155,14 @@ public class Util {
 		if (Character.isLowerCase(first))
 			targ = Character.toUpperCase(first) + targ.substring(1);
 		return targ;
+	}
+
+	public static void main(String[] args) {
+		System.err.println(removeEntities("&amp;/or"));
+		System.err.println(removeEntities("no match"));
+		System.err.println(removeEntities("&lt;foo&gt;"));
+		System.err.println(removeEntities("&lt;&gt;"));
+		System.err.println(removeEntities("a&b"));
+		System.err.println(removeEntities("&"));
 	}
 }
