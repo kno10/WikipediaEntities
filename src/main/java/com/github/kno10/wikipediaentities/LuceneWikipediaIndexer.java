@@ -50,7 +50,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 	/** Match links, which are not nested. */
 	private Matcher linkMatcher = Pattern
 			.compile(
-					"\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*([^\\]\\[\\#]*))?(?:#.*?)?\\s*\\]\\]")
+					"\\[\\[\\s*([^\\]\\[\\|]*?)(?:#.*?)?(?:\\s*\\|\\s*([^\\]\\[\\#]*))?\\s*\\]\\]")
 			.matcher("");
 
 	/** More cruft to remove */
@@ -81,12 +81,12 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 		skip.add(WikipediaTokenizer.EXTERNAL_LINK_URL);
 		tokenizer = new WikipediaTokenizer(null,
 				WikipediaTokenizer.TOKENS_ONLY, skip);
-		stream = new LowerCaseFilter(Version.LUCENE_35, tokenizer);
+		stream = new LowerCaseFilter(Version.LUCENE_36, tokenizer);
 		stream.addAttribute(CharTermAttribute.class);
 
 		FSDirectory ldir = FSDirectory.open(new File(dir));
-		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_35,
-				new StandardAnalyzer(Version.LUCENE_35));
+		IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_36,
+				new StandardAnalyzer(Version.LUCENE_36));
 		index = new IndexWriter(ldir, config);
 		this.handler = handler;
 	}
@@ -110,11 +110,20 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			while (linkMatcher.find()) {
 				buf.append(text, pos, linkMatcher.start());
 				String targ = linkMatcher.group(1);
+				if (targ == null || targ.length() == 0) {
+					buf.append(linkMatcher.group(2));
+					pos = linkMatcher.end();
+					continue; // Internal link.
+				}
+				targ = Util.normalizeLink(targ);
+				if (targ == null) {
+					System.err.println(linkMatcher.group(0));
+					continue;
+				}
 				String labl = linkMatcher.group(2);
 				if (labl == null)
 					labl = targ;
-				labl = labl.replace('\n', ' ');
-				targ = Util.normalizeLink(targ.replace('\n', ' '));
+				labl = labl.replace('\n', ' ').trim();
 				if (targ != null)
 					handler.linkDetected(title, labl != null ? labl : targ,
 							targ);
@@ -145,6 +154,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 
 	@Override
 	public void close() {
+		handler.close();
 		System.err.format("Closing %s output.", getClass().getSimpleName());
 		try {
 			index.close();

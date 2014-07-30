@@ -33,7 +33,7 @@ public class ParseWikipedia {
 	/** Pattern for recognizing redirects */
 	Matcher redirmatcher = Pattern
 			.compile(
-					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*[^\\]\\[\\#]*)?(?:#.*?)?\\s*\\]\\]",
+					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|#]*?)(?:#.*?)?(?:\\s*\\|\\s*[^\\]\\[\\#]*)?\\s*\\]\\]",
 					Pattern.CASE_INSENSITIVE).matcher("");
 
 	/**
@@ -120,6 +120,7 @@ public class ParseWikipedia {
 		// Skip boring "list of" pages
 		if (title.startsWith("List of "))
 			return;
+		text = Util.removeEntities(text);
 		if (redirect != null) {
 			redirmatcher.reset(text);
 			if (redirmatcher.find()) {
@@ -127,12 +128,12 @@ public class ParseWikipedia {
 				redirect = Util.normalizeLink(g1);
 			} else {
 				redirect = Util.removeEntities(redirect);
+				redirect = Util.normalizeLink(redirect);
 				System.err.println("No redirect in " + title + ": " + text);
 			}
 			handler.redirect(title, redirect);
 			return;
 		}
-		text = Util.removeEntities(text);
 		// More text normalizations:
 		text = Util.normalizeText(text);
 		handler.rawArticle(title, text);

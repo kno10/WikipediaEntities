@@ -31,7 +31,6 @@ public class RedirectCollector extends AbstractHandler {
 
 	@Override
 	public void redirect(String title, String redirect) {
-		redirect = Util.normalizeLink(redirect);
 		if (redirect == null || redirect.length() == 0)
 			return;
 		redirects.put(title, redirect);

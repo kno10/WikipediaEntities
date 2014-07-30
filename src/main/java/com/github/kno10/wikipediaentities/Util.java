@@ -144,13 +144,9 @@ public class Util {
 	 * @return Normalized link (anchor removed, first char uppercase)
 	 */
 	public static String normalizeLink(String targ) {
+		targ = targ.replace('\n', ' ').trim();
 		if (targ.length() == 0)
 			return null;
-		int pos = targ.indexOf('#');
-		if (pos == 0)
-			return null;
-		if (pos >= 0)
-			targ = targ.substring(0, pos);
 		char first = targ.charAt(0);
 		if (Character.isLowerCase(first))
 			targ = Character.toUpperCase(first) + targ.substring(1);
@@ -164,12 +160,27 @@ public class Util {
 		System.err.println(removeEntities("&lt;&gt;"));
 		System.err.println(removeEntities("a&b"));
 		System.err.println(removeEntities("&"));
+		System.err.println(removeEntities("Con O&#039;Neill (diplomat)"));
 
 		Matcher redirmatcher = Pattern
 				.compile(
 						"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*[^\\]\\[\\#]*)?(?:#.*?)?\\s*\\]\\]",
 						Pattern.CASE_INSENSITIVE).matcher("");
-		
+
 		redirmatcher.reset("#REDIRECT [[A♯ (musical note)|A{{music|sharp}}]]");
+		if (redirmatcher.matches())
+			System.err.println(">" + redirmatcher.group(1) + "<");
+		redirmatcher
+				.reset(removeEntities("#REDIRECT [[Con O&#039;Neill (diplomat)]]"));
+		if (redirmatcher.matches())
+			System.err.println(">" + redirmatcher.group(1) + "<");
+
+		Matcher linkMatcher = Pattern
+				.compile(
+						"\\[\\[\\s*([^\\]\\[\\|]*?)\\s*(?:\\|\\s*([^\\]\\[\\#]*))?(?:#.*?)?\\s*\\]\\]")
+				.matcher("");
+		linkMatcher.reset(removeEntities("lorem ipsum [[Obamacare ]]"));
+		if (linkMatcher.find())
+			System.err.println(">" + linkMatcher.group(1) + "<");
 	}
 }

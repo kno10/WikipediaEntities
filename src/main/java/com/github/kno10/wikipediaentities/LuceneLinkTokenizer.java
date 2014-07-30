@@ -46,7 +46,7 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	public LuceneLinkTokenizer(String out) {
 		tokenizer = new WikipediaTokenizer(null);
 		// stream = new PorterStemFilter(tokenizer);
-		stream = new LowerCaseFilter(Version.LUCENE_35, tokenizer);
+		stream = new LowerCaseFilter(Version.LUCENE_36, tokenizer);
 		termAtt = stream.addAttribute(CharTermAttribute.class);
 		this.out = out;
 	}
