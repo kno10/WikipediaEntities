@@ -7,7 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
-import java.io.StringWriter;
+import java.io.Writer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPOutputStream;
@@ -15,6 +15,9 @@ import java.util.zip.GZIPOutputStream;
 import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.lang3.StringEscapeUtils;
+import org.apache.commons.lang3.text.translate.EntityArrays;
+
+import com.github.kno10.wikipediaentities.stringutil.PrefixTreeMatcher;
 
 /**
  * Utility functions.
@@ -42,9 +45,33 @@ public class Util {
 		return new PrintStream(new FileOutputStream(out));
 	}
 
+	protected static PrefixTreeMatcher PREFIXMATCHER = new PrefixTreeMatcher();
+
+	// Build the prefix tree
+	static {
+		PREFIXMATCHER = PrefixTreeMatcher.makeNumericalEntityMatcher();
+		for (String[] p : EntityArrays.BASIC_UNESCAPE())
+			PREFIXMATCHER.add(p[0], p[1]);
+		for (String[] p : EntityArrays.ISO8859_1_UNESCAPE())
+			PREFIXMATCHER.add(p[0], p[1]);
+		for (String[] p : EntityArrays.HTML40_EXTENDED_UNESCAPE())
+			PREFIXMATCHER.add(p[0], p[1]);
+		PREFIXMATCHER.add("–", "-");
+		PREFIXMATCHER.add("—", "-");
+		PREFIXMATCHER.add("`", "'");
+		PREFIXMATCHER.add("’", "'");
+		PREFIXMATCHER.add("\t", " ");
+		PREFIXMATCHER.add("\r\n", "\n");
+		PREFIXMATCHER.add("\r", "\n");
+	}
+
 	/**
 	 * Fast replace all HTML entities, because Apache commons
 	 * {@link StringEscapeUtils#unescapeHtml4(String)} is unbearably slow.
+	 * Unfortunately, it also insists on using the {@link Writer} interface,
+	 * which enforces synchronization.
+	 * 
+	 * TODO: we ignore the possibility of UTF-16 codepoints...
 	 * 
 	 * @param text
 	 *            Text to process
@@ -57,13 +84,12 @@ public class Util {
 		if (i < 0)
 			return text;
 		try {
-			StringWriter buf = new StringWriter();
+			StringBuilder buf = new StringBuilder(text.length());
 			int s = 0;
 			final int end = text.length();
 			while (i >= 0 && i < end) {
 				buf.append(text, s, i);
-				s = StringEscapeUtils.UNESCAPE_HTML4.translate(//
-						text, i, buf);
+				s = PREFIXMATCHER.match(text, i, end, buf);
 				if (s == 0) {
 					buf.append('&'); // No match
 					++s;
@@ -78,41 +104,6 @@ public class Util {
 			// This should be unreachable, unless we run out of memory.
 			throw new RuntimeException(e);
 		}
-	}
-
-	/**
-	 * Normalize text by substituting a number of unusual chars with more usual
-	 * alternatives.
-	 * 
-	 * @param text
-	 *            Text to process.
-	 * @return Substituted text
-	 */
-	public static String normalizeText(String text) {
-		StringBuilder buf = new StringBuilder();
-		for (int i = 0, l = text.length(); i < l; ++i) {
-			char c = text.charAt(i);
-			switch (c) {
-			case '–':
-				buf.append('-');
-				break;
-			case '—':
-				buf.append('-');
-				break;
-			case '`':
-				buf.append('\'');
-				break;
-			case '’':
-				buf.append('\'');
-				break;
-			case '\t':
-				buf.append(' ');
-				break;
-			default: // else keep
-				buf.append(c);
-			}
-		}
-		return buf.toString();
 	}
 
 	/**
@@ -154,6 +145,7 @@ public class Util {
 	}
 
 	public static void main(String[] args) {
+		// System.out.print(PREFIXMATCHER.debug(new StringBuilder(), 0));
 		System.err.println(removeEntities("&amp;/or"));
 		System.err.println(removeEntities("no match"));
 		System.err.println(removeEntities("&lt;foo&gt;"));
@@ -161,6 +153,7 @@ public class Util {
 		System.err.println(removeEntities("a&b"));
 		System.err.println(removeEntities("&"));
 		System.err.println(removeEntities("Con O&#039;Neill (diplomat)"));
+		System.err.println(removeEntities("&#039ab&#039"));
 
 		Matcher redirmatcher = Pattern
 				.compile(
@@ -182,5 +175,32 @@ public class Util {
 		linkMatcher.reset(removeEntities("lorem ipsum [[Obamacare ]]"));
 		if (linkMatcher.find())
 			System.err.println(">" + linkMatcher.group(1) + "<");
+	}
+
+	public static class StringBuilderWriter extends Writer {
+		StringBuilder buf = new StringBuilder();
+
+		private StringBuilderWriter() {
+			super();
+			lock = buf;
+		}
+
+		@Override
+		public void write(char[] cbuf, int off, int len) throws IOException {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void flush() throws IOException {
+			// TODO Auto-generated method stub
+
+		}
+
+		@Override
+		public void close() throws IOException {
+			// TODO Auto-generated method stub
+
+		}
 	}
 }

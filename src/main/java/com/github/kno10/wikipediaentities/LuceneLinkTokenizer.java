@@ -41,11 +41,14 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	Map<String, CounterSet<String>> links = new HashMap<>();
 
 	/** Minimum support to report */
-	static final int MINSUPP = 2;
+	static final int MINSUPP = 3;
 
 	/** Filter to only retain links with minimum support */
-	private CounterSet.CounterFilter filter = new CounterSet.CounterFilter(
+	private CounterSet.CounterFilter popularityFilter = new CounterSet.CounterFilter(
 			MINSUPP);
+
+	/** Articles that really exist */
+	private Unique<String> articles = new Unique<>();
 
 	/** Redirect collector */
 	private RedirectCollector r;
@@ -67,6 +70,11 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 		termAtt = stream.addAttribute(CharTermAttribute.class);
 		this.out = out;
 		this.r = r;
+	}
+
+	@Override
+	public void rawArticle(String title, String text) {
+		articles.addOrGet(title);
 	}
 
 	@Override
@@ -115,19 +123,21 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 		Collections.sort(keys);
 		ResolveRedirectsFilter resolveRedirects = new ResolveRedirectsFilter(
 				r.transitiveClosure());
+		FilterBySet articleFilter = new FilterBySet(articles);
 		for (String key : keys) {
-			filter.reset();
+			popularityFilter.reset();
 			CounterSet<String> counter = links.get(key);
 			resolveRedirects.map = counter;
 			counter.retainEntries(resolveRedirects);
-			counter.retainEntries(filter);
+			counter.retainEntries(popularityFilter);
+			counter.retainEntries(articleFilter);
 			if (counter.size() == 0)
 				continue;
 			writer.append(key).append('\t')
-					.append(Integer.toString(filter.getSum()));
+					.append(Integer.toString(popularityFilter.getSum()));
 			for (CounterSet.Entry<String> val : counter.descending()) {
 				int c = val.getCount();
-				if (c * 10 < filter.getMax())
+				if (c * 10 < popularityFilter.getMax())
 					continue;
 				writer.append('\t').append(val.getKey());
 				writer.append(':').append(Integer.toString(c));
@@ -159,6 +169,32 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 				return true;
 			map.adjustValue(t, count);
 			return false;
+		}
+	}
+
+	/**
+	 * Retain only entries that point to a "proper" article.
+	 * 
+	 * @author Erich Schubert
+	 */
+	public static final class FilterBySet implements
+			TObjectIntProcedure<Object> {
+		/** Acceptance set */
+		Unique<String> accept;
+
+		/**
+		 * Constructor
+		 * 
+		 * @param accept
+		 *            Entries to accept.
+		 */
+		public FilterBySet(Unique<String> accept) {
+			this.accept = accept;
+		}
+
+		@Override
+		public boolean execute(Object a, int b) {
+			return accept.contains(a);
 		}
 	}
 }

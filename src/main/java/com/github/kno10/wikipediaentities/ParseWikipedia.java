@@ -136,8 +136,6 @@ public class ParseWikipedia {
 			handler.redirect(title, redirect, anchor);
 			return;
 		}
-		// More text normalizations:
-		text = Util.normalizeText(text);
 		handler.rawArticle(title, text);
 	}
 

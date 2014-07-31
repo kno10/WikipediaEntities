@@ -167,6 +167,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			System.exit(1);
 		}
 		clearLinks();
+		handler.rawArticle(title, intext);
 	}
 
 	static class FastStringReader extends Reader {
