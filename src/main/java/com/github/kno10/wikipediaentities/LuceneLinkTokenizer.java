@@ -38,20 +38,27 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	private String out;
 
 	/** Link text -> map(target -> count) */
-	Map<String, TObjectIntHashMap<String>> links = new HashMap<>();
+	Map<String, CounterSet<String>> links = new HashMap<>();
 
-	static final int MINSUPP = 5;
+	/** Minimum support to report */
+	static final int MINSUPP = 2;
 
 	/** Filter to only retain links with minimum support */
-	private CounterFilter filter = new CounterFilter();
+	private CounterSet.CounterFilter filter = new CounterSet.CounterFilter(
+			MINSUPP);
+
+	/** Redirect collector */
+	private RedirectCollector r;
 
 	/**
 	 * Constructor
 	 * 
 	 * @param out
 	 *            Output file name
+	 * @param r
+	 *            Redirect collector
 	 */
-	public LuceneLinkTokenizer(String out) {
+	public LuceneLinkTokenizer(String out, RedirectCollector r) {
 		tokenizer = new WikipediaTokenizer(null);
 		stream = tokenizer;
 		// stream = new PorterStemFilter(tokenizer);
@@ -59,6 +66,7 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 		stream = new LowerCaseFilter(Version.LUCENE_36, stream);
 		termAtt = stream.addAttribute(CharTermAttribute.class);
 		this.out = out;
+		this.r = r;
 	}
 
 	@Override
@@ -80,12 +88,12 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 			if (buf == null)
 				return;
 			label = buf.toString();
-			TObjectIntHashMap<String> seen = links.get(label);
+			CounterSet<String> seen = links.get(label);
 			if (seen == null) {
-				seen = new TObjectIntHashMap<>();
+				seen = new CounterSet<>();
 				links.put(label, seen);
 			}
-			seen.adjustOrPutValue(target, 1, 1);
+			seen.count(target);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -104,38 +112,53 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 		// We sort everything here. This is expensive, but makes the output
 		// files nicer to use in the future.
 		ArrayList<String> keys = new ArrayList<>(links.keySet());
-		ArrayList<String> vals = new ArrayList<>();
 		Collections.sort(keys);
+		ResolveRedirectsFilter resolveRedirects = new ResolveRedirectsFilter(
+				r.transitiveClosure());
 		for (String key : keys) {
-			filter.max = 0;
-			TObjectIntHashMap<String> counter = links.get(key);
+			filter.reset();
+			CounterSet<String> counter = links.get(key);
+			resolveRedirects.map = counter;
+			counter.retainEntries(resolveRedirects);
 			counter.retainEntries(filter);
 			if (counter.size() == 0)
 				continue;
-			writer.append(key);
-			vals.addAll(counter.keySet());
-			Collections.sort(vals);
-			for (String val : vals) {
-				int c = counter.get(val);
-				if (c * 10 < filter.max)
+			writer.append(key).append('\t')
+					.append(Integer.toString(filter.getSum()));
+			for (CounterSet.Entry<String> val : counter.descending()) {
+				int c = val.getCount();
+				if (c * 10 < filter.getMax())
 					continue;
-				writer.append('\t').append(val);
+				writer.append('\t').append(val.getKey());
 				writer.append(':').append(Integer.toString(c));
 			}
 			writer.append('\n');
-			vals.clear(); // Will be reused
 		}
 		if (writer != System.out)
 			writer.close();
 	}
 
-	public static final class CounterFilter implements TObjectIntProcedure<Object> {
-		int max = 0;
+	/**
+	 * Filter to resolve redirects.
+	 * 
+	 * @author Erich Schubert
+	 */
+	public static final class ResolveRedirectsFilter implements
+			TObjectIntProcedure<Object> {
+		Map<String, String> redirects;
+		TObjectIntHashMap<String> map;
+
+		public ResolveRedirectsFilter(Map<String, String> redirects) {
+			this.redirects = redirects;
+		}
 
 		@Override
 		public boolean execute(Object target, int count) {
-			max = (count > max) ? count : max;
-			return count > MINSUPP;
+			String t = redirects.get(target);
+			if (t == null)
+				return true;
+			map.adjustValue(t, count);
+			return false;
 		}
 	}
 }

@@ -19,6 +19,9 @@ public class RedirectCollector extends AbstractHandler {
 	/** Hashmap storage */
 	protected Map<String, String> redirects = new HashMap<>();
 
+	/** Has the transitive closure been computed */
+	protected boolean closed = false;
+
 	/**
 	 * Constructor.
 	 * 
@@ -33,11 +36,16 @@ public class RedirectCollector extends AbstractHandler {
 	public void redirect(String title, String redirect, String anchor) {
 		if (redirect == null || redirect.length() == 0)
 			return;
-		redirects.put(title, redirect + '\t' + anchor);
+		if (anchor != null)
+			redirects.put(title, redirect + '\t' + anchor);
+		else
+			redirects.put(title, redirect);
 	}
 
 	/** Compute the transitive closure of redirects. */
-	private void transitiveClosure() {
+	public Map<String, String> transitiveClosure() {
+		if (closed)
+			return redirects;
 		HashSet<String> seen = new HashSet<>();
 		// Iterate using a copy to avoid concurrent modification
 		for (String key : new ArrayList<>(redirects.keySet())) {
@@ -54,9 +62,14 @@ public class RedirectCollector extends AbstractHandler {
 				}
 				targ = targ2;
 			}
-			redirects.put(key, targ);
+			if (key.equals(targ))
+				redirects.remove(key);
+			else
+				redirects.put(key, targ);
 			seen.clear();
 		}
+		closed = true;
+		return redirects;
 	}
 
 	@Override

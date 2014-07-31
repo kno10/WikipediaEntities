@@ -33,7 +33,7 @@ public class ParseWikipedia {
 	/** Pattern for recognizing redirects */
 	Matcher redirmatcher = Pattern
 			.compile(
-					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|#]*?)(?:#\\s*(.*?)\\s*)?(?:\\s*\\|\\s*[^\\]\\[#]*)?\\s*\\]\\]",
+					"#(?:REDIRECT|WEITERLEITUNG)[:\\s]*\\[\\[\\s*([^\\]\\[\\|#]*?)(?:#\\s*(.*?)\\s*)?(?:\\s*\\|\\s*[^\\]\\[]*)?\\s*\\]\\]",
 					Pattern.CASE_INSENSITIVE).matcher("");
 
 	/**
@@ -174,10 +174,11 @@ public class ParseWikipedia {
 			HandlerList h1 = new HandlerList(), h2 = new HandlerList();
 			ParseWikipedia l = new ParseWikipedia(Config.get("loader.source"),
 					h1);
-			h1.add(new RedirectCollector(Config.get("redirects.output")));
+			RedirectCollector r = new RedirectCollector(Config.get("redirects.output"));
+			h1.add(r);
 			h1.add(new LuceneWikipediaIndexer(Config.get("indexer.dir"), h2));
 			h2.add(new LinkCollector(Config.get("links.output")));
-			h2.add(new LuceneLinkTokenizer(Config.get("linktext.output")));
+			h2.add(new LuceneLinkTokenizer(Config.get("linktext.output"), r));
 			l.run();
 		} catch (IOException | XMLStreamException e) {
 			e.printStackTrace();

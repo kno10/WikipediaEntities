@@ -45,8 +45,8 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 
 	/** Patterns to strip from the wiki text */
 	private Matcher stripBasics = Pattern.compile(
-			"(<!--.*?-->|<math>(.*?)</math>|</?su[bp]>|__(NO)TOC__)",
-			Pattern.CASE_INSENSITIVE).matcher("");
+			"(<!--.*?-->|<math>(.*?)</math>|</?su[bp]>|^\\s*__\\w+__\\s*$)",
+			Pattern.CASE_INSENSITIVE | Pattern.MULTILINE).matcher("");
 
 	/** Pattern to strip all templates, as we cannot reasonably parse them */
 	private Matcher stripTemplates = Pattern.compile("\\{\\{([^}{]*?)\\}\\}")
@@ -55,7 +55,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 	/** Match links, which are not nested. */
 	private Matcher linkMatcher = Pattern
 			.compile(
-					"\\[\\[\\s*([^\\]\\[\\|]*?)(?:#.*?)?(?:\\s*\\|\\s*([^\\]\\[\\#]*))?\\s*\\]\\]")
+					"\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:\\s*\\|\\s*([^\\]\\[\\#]*))?\\s*\\]\\]")
 			.matcher("");
 
 	/** More cruft to remove */

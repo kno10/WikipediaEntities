@@ -35,8 +35,8 @@ public class LinkCollector extends AbstractHandler {
 	public void linkDetected(String title, String label, String target) {
 		if (!title.equals(cur))
 			nextEntry(title);
-		targets.add(label);
-		targets.add(target);
+		targets.add(label.replace('\t', ' '));
+		targets.add(target.replace('\t', ' '));
 	}
 
 	/**

@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -42,7 +41,7 @@ public class AnalyzeLinks {
 		IndexReader reader = IndexReader.open(ldir);
 		IndexSearcher searcher = new IndexSearcher(reader);
 
-		HashMap<String, Counter> counters = new HashMap<>();
+		CounterSet<String> counters = new CounterSet<>();
 
 		try (InputStream in = Util.openInput(nam);
 				BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
@@ -61,30 +60,22 @@ public class AnalyzeLinks {
 					String dtitle = d
 							.get(LuceneWikipediaIndexer.LUCENE_FIELD_TITLE);
 					Collection<String> lis = links.get(dtitle);
-					if (lis == null) {
+					if (lis == null)
 						// System.err.format("No links for %s.\n", dtitle);
 						continue;
-					}
-					for (String l : lis) {
-						Counter c = counters.get(l);
-						if (c == null) {
-							c = new Counter(l);
-							counters.put(l, c);
-						}
-						c.count++;
-					}
+					for (String l : lis)
+						counters.count(l);
 				}
-				ArrayList<Counter> cs = new ArrayList<>(counters.values());
-				Collections.sort(cs);
 				System.out.append(s[0]);
 				System.out.format("\t%d", docs.length);
-				for (Counter c : cs) {
-					if (c.count < minsupp)
+				for (CounterSet.Entry<String> c : counters.descending()) {
+					final int count = c.getCount();
+					if (count < minsupp)
 						break;
-					if (c.count / 4 > minsupp) // Increase cutoff
-						minsupp = c.count / 4;
-					System.out.format(Locale.ENGLISH, "\t%s:%d:%.3f", c.target,
-							c.count, c.count / (double) docs.length);
+					if (count / 4 > minsupp) // Increase cutoff
+						minsupp = count / 4;
+					System.out.format(Locale.ENGLISH, "\t%s:%d:%.3f",
+							c.getKey(), count, count / (double) docs.length);
 				}
 				System.out.println();
 				counters.clear();
