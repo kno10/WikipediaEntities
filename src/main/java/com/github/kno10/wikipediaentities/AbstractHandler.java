@@ -12,7 +12,7 @@ public abstract class AbstractHandler implements Handler {
 	}
 
 	@Override
-	public void redirect(String title, String redirect) {
+	public void redirect(String title, String redirect, String anchor) {
 		// Ignore
 	}
 

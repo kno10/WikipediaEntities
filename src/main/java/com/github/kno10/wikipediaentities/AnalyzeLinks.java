@@ -93,7 +93,7 @@ public class AnalyzeLinks {
 		searcher.close();
 	}
 
-	class Counter implements Comparable<Counter> {
+	static class Counter implements Comparable<Counter> {
 		int count = 0;
 		final String target;
 

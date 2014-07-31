@@ -13,8 +13,10 @@ public interface Handler {
 	 *            Source title
 	 * @param redirect
 	 *            Redirection target
+	 * @param anchor
+	 *            Anchor
 	 */
-	void redirect(String title, String redirect);
+	void redirect(String title, String redirect, String anchor);
 
 	/**
 	 * Process a raw article.

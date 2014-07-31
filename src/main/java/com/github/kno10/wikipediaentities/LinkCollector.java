@@ -3,10 +3,6 @@ package com.github.kno10.wikipediaentities;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Collect all outgoing internal links from each Wikipedia article.
@@ -18,7 +14,7 @@ public class LinkCollector extends AbstractHandler {
 	String cur = null;
 
 	/** Observed link targets in current page */
-	Set<String> targets = new HashSet<>();
+	ArrayList<String> targets = new ArrayList<>();
 
 	/** Output writer */
 	PrintStream writer;
@@ -39,6 +35,7 @@ public class LinkCollector extends AbstractHandler {
 	public void linkDetected(String title, String label, String target) {
 		if (!title.equals(cur))
 			nextEntry(title);
+		targets.add(label);
 		targets.add(target);
 	}
 
@@ -52,9 +49,7 @@ public class LinkCollector extends AbstractHandler {
 		// Write and close previous entry
 		if (cur != null) {
 			writer.append(cur);
-			List<String> t = new ArrayList<>(targets);
-			Collections.sort(t);
-			for (String s : t)
+			for (String s : targets)
 				writer.append('\t').append(s);
 			writer.append('\n');
 		}

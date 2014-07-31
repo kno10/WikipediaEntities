@@ -30,10 +30,10 @@ public class RedirectCollector extends AbstractHandler {
 	}
 
 	@Override
-	public void redirect(String title, String redirect) {
+	public void redirect(String title, String redirect, String anchor) {
 		if (redirect == null || redirect.length() == 0)
 			return;
-		redirects.put(title, redirect);
+		redirects.put(title, redirect + '\t' + anchor);
 	}
 
 	/** Compute the transitive closure of redirects. */

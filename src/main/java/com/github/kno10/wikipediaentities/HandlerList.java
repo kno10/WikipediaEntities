@@ -13,9 +13,9 @@ public class HandlerList implements Handler {
 	Collection<Handler> handlers = new ArrayList<>();
 
 	@Override
-	public void redirect(String title, String redirect) {
+	public void redirect(String title, String redirect, String anchor) {
 		for (Handler h : handlers)
-			h.redirect(title, redirect);
+			h.redirect(title, redirect, anchor);
 	}
 
 	@Override

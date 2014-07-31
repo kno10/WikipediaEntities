@@ -33,7 +33,7 @@ public class ParseWikipedia {
 	/** Pattern for recognizing redirects */
 	Matcher redirmatcher = Pattern
 			.compile(
-					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|#]*?)(?:#.*?)?(?:\\s*\\|\\s*[^\\]\\[\\#]*)?\\s*\\]\\]",
+					"#REDIRECT[:\\s]*\\[\\[\\s*([^\\]\\[\\|#]*?)(?:#\\s*(.*?)\\s*)?(?:\\s*\\|\\s*[^\\]\\[#]*)?\\s*\\]\\]",
 					Pattern.CASE_INSENSITIVE).matcher("");
 
 	/**
@@ -123,15 +123,17 @@ public class ParseWikipedia {
 		text = Util.removeEntities(text);
 		if (redirect != null) {
 			redirmatcher.reset(text);
+			String anchor = "";
 			if (redirmatcher.find()) {
 				String g1 = redirmatcher.group(1);
 				redirect = Util.normalizeLink(g1);
+				anchor = redirmatcher.group(2);
 			} else {
 				redirect = Util.removeEntities(redirect);
 				redirect = Util.normalizeLink(redirect);
 				System.err.println("No redirect in " + title + ": " + text);
 			}
-			handler.redirect(title, redirect);
+			handler.redirect(title, redirect, anchor);
 			return;
 		}
 		// More text normalizations:
