@@ -136,14 +136,17 @@ public class ParseWikipedia {
 			handler.redirect(title, redirect, anchor);
 			return;
 		}
+		// Note: removing some of these too early will break redirects!
+		text = Util.removeSpecial(text);
 		handler.rawArticle(title, text);
 	}
+
+	StringBuilder buf = new StringBuilder();
 
 	private String parseTextContents(XMLEventReader eventReader)
 			throws XMLStreamException {
 		// Chances are that we'll only need one string.
 		String ret = null;
-		StringBuilder buf = null; // Fallback to a string builder
 		while (eventReader.hasNext()) {
 			XMLEvent event = eventReader.nextEvent();
 			if (event.isEndElement())
@@ -152,13 +155,17 @@ public class ParseWikipedia {
 				if (ret == null)
 					ret = event.asCharacters().getData();
 				else { // This codepath may be unnecessary.
-					if (buf == null)
-						buf = new StringBuilder(ret);
+					if (buf.length() == 0)
+						buf.append(ret);
 					buf.append(event.asCharacters().getData());
 				}
 			}
 		}
-		return buf != null ? buf.toString() : ret;
+		if (buf.length() > 0) {
+			ret = buf.toString();
+			buf.delete(0, buf.length());
+		}
+		return ret;
 	}
 
 	/**
@@ -172,7 +179,8 @@ public class ParseWikipedia {
 			HandlerList h1 = new HandlerList(), h2 = new HandlerList();
 			ParseWikipedia l = new ParseWikipedia(Config.get("loader.source"),
 					h1);
-			RedirectCollector r = new RedirectCollector(Config.get("redirects.output"));
+			RedirectCollector r = new RedirectCollector(
+					Config.get("redirects.output"));
 			h1.add(r);
 			h1.add(new LuceneWikipediaIndexer(Config.get("indexer.dir"), h2));
 			h2.add(new LinkCollector(Config.get("links.output")));

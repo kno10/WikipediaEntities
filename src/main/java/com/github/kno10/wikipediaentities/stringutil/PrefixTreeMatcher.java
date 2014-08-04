@@ -257,7 +257,7 @@ public class PrefixTreeMatcher {
 			// Consume a final semicolon, too.
 			if (c == ';')
 				++pos;
-			if (buf > 0xFFFF)
+			if (buf >= Character.MIN_SUPPLEMENTARY_CODE_POINT)
 				try {
 					for (char c2 : Character.toChars(buf))
 						out.append(c2);
@@ -293,7 +293,7 @@ public class PrefixTreeMatcher {
 			// Consume a final semicolon, too.
 			if (c == ';')
 				++pos;
-			if (buf > 0xFFFF)
+			if (buf >= Character.MIN_SUPPLEMENTARY_CODE_POINT)
 				try {
 					for (char c2 : Character.toChars(buf))
 						out.append(c2);

@@ -45,24 +45,26 @@ public class Util {
 		return new PrintStream(new FileOutputStream(out));
 	}
 
-	protected static PrefixTreeMatcher PREFIXMATCHER = new PrefixTreeMatcher();
+	protected static PrefixTreeMatcher MATCHER, SMATCHER;
 
 	// Build the prefix tree
 	static {
-		PREFIXMATCHER = PrefixTreeMatcher.makeNumericalEntityMatcher();
+		MATCHER = PrefixTreeMatcher.makeNumericalEntityMatcher();
 		for (String[] p : EntityArrays.BASIC_UNESCAPE())
-			PREFIXMATCHER.add(p[0], p[1]);
+			MATCHER.add(p[0], p[1]);
 		for (String[] p : EntityArrays.ISO8859_1_UNESCAPE())
-			PREFIXMATCHER.add(p[0], p[1]);
+			MATCHER.add(p[0], p[1]);
 		for (String[] p : EntityArrays.HTML40_EXTENDED_UNESCAPE())
-			PREFIXMATCHER.add(p[0], p[1]);
-		PREFIXMATCHER.add("–", "-");
-		PREFIXMATCHER.add("—", "-");
-		PREFIXMATCHER.add("`", "'");
-		PREFIXMATCHER.add("’", "'");
-		PREFIXMATCHER.add("\t", " ");
-		PREFIXMATCHER.add("\r\n", "\n");
-		PREFIXMATCHER.add("\r", "\n");
+			MATCHER.add(p[0], p[1]);
+
+		SMATCHER = new PrefixTreeMatcher();
+		SMATCHER.add("–", "-");
+		SMATCHER.add("—", "-");
+		SMATCHER.add("`", "'");
+		SMATCHER.add("’", "'");
+		SMATCHER.add("\t", " ");
+		SMATCHER.add("\r\n", "\n");
+		SMATCHER.add("\r", "\n");
 	}
 
 	/**
@@ -80,25 +82,36 @@ public class Util {
 	public static String removeEntities(String text) {
 		if (text == null)
 			return text;
-		int i = text.indexOf('&');
-		if (i < 0)
+		try {
+			StringBuilder buf = new StringBuilder(text.length());
+			final int end = text.length();
+			for (int s = 0; s >= 0 && s < end;) {
+				int c = MATCHER.match(text, s, end, buf);
+				if (c > 0)
+					s += c;
+				else
+					buf.append(text.charAt(s++)); // No match
+			}
+			return buf.toString();
+		} catch (IOException e) {
+			// This should be unreachable, unless we run out of memory.
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static String removeSpecial(String text) {
+		if (text == null)
 			return text;
 		try {
 			StringBuilder buf = new StringBuilder(text.length());
-			int s = 0;
 			final int end = text.length();
-			while (i >= 0 && i < end) {
-				buf.append(text, s, i);
-				s = PREFIXMATCHER.match(text, i, end, buf);
-				if (s == 0) {
-					buf.append('&'); // No match
-					++s;
-				}
-				s += i;
-				i = text.indexOf('&', s);
+			for (int s = 0; s >= 0 && s < end;) {
+				int c = SMATCHER.match(text, s, end, buf);
+				if (c > 0)
+					s += c;
+				else
+					buf.append(text.charAt(s++)); // No match
 			}
-			if (s < text.length())
-				buf.append(text, s, end);
 			return buf.toString();
 		} catch (IOException e) {
 			// This should be unreachable, unless we run out of memory.
@@ -175,32 +188,5 @@ public class Util {
 		linkMatcher.reset(removeEntities("lorem ipsum [[Obamacare ]]"));
 		if (linkMatcher.find())
 			System.err.println(">" + linkMatcher.group(1) + "<");
-	}
-
-	public static class StringBuilderWriter extends Writer {
-		StringBuilder buf = new StringBuilder();
-
-		private StringBuilderWriter() {
-			super();
-			lock = buf;
-		}
-
-		@Override
-		public void write(char[] cbuf, int off, int len) throws IOException {
-			// TODO Auto-generated method stub
-
-		}
-
-		@Override
-		public void flush() throws IOException {
-			// TODO Auto-generated method stub
-
-		}
-
-		@Override
-		public void close() throws IOException {
-			// TODO Auto-generated method stub
-
-		}
 	}
 }

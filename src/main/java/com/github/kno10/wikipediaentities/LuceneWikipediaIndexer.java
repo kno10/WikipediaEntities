@@ -98,6 +98,8 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 		this.handler = handler;
 	}
 
+	StringBuilder buf = new StringBuilder();
+
 	@Override
 	public void rawArticle(String title, String intext) {
 		CharSequence text = intext;
@@ -112,7 +114,7 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			text = text2;
 		}
 		{ // Parse, and replace links with their text only:
-			StringBuilder buf = new StringBuilder();
+			buf.delete(0, buf.length()); // clear
 			int pos = 0;
 			linkMatcher.reset(text);
 			while (linkMatcher.find()) {
@@ -156,7 +158,8 @@ public class LuceneWikipediaIndexer extends AbstractHandler {
 			doc.add(new Field(LUCENE_FIELD_TITLE, title, Field.Store.YES,
 					Field.Index.NOT_ANALYZED_NO_NORMS));
 			doc.add(new Field(LUCENE_FIELD_LINKS, serializeLinks(),
-					Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS));
+					Field.Store.YES, Field.Index.NOT_ANALYZED_NO_NORMS,
+					Field.TermVector.NO));
 
 			tokenizer.reset(new FastStringReader(text.toString()));
 			stream.reset();

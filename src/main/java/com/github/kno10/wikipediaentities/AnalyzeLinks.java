@@ -5,13 +5,9 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
@@ -22,7 +18,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.FSDirectory;
 
 public class AnalyzeLinks {
-	private static final int MINIMUM_MENTIONS = 100;
+	private static final int MINIMUM_MENTIONS = 25;
 
 	/** Collect unique strings. */
 	Unique<String> unique = new Unique<>();
@@ -31,17 +27,15 @@ public class AnalyzeLinks {
 		Map<String, String> redirects = loadRedirects(Config
 				.get("redirects.output"));
 		System.err.format("Read %d redirects.\n", redirects.size());
-		Map<String, Collection<String>> links = loadLinks(
-				Config.get("links.output"), redirects);
-		System.err.format("Read %d links.\n", links.size());
 		String nam = Config.get("linktext.output");
-
 		String dir = Config.get("indexer.dir");
 		FSDirectory ldir = FSDirectory.open(new File(dir));
 		IndexReader reader = IndexReader.open(ldir);
 		IndexSearcher searcher = new IndexSearcher(reader);
 
 		CounterSet<String> counters = new CounterSet<>();
+		HashSet<String> cands = new HashSet<>();
+		StringBuilder buf = new StringBuilder();
 
 		try (InputStream in = Util.openInput(nam);
 				BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
@@ -51,51 +45,59 @@ public class AnalyzeLinks {
 				PhraseQuery pq = new PhraseQuery();
 				for (String t : s[0].split(" "))
 					pq.add(new Term(LuceneWikipediaIndexer.LUCENE_FIELD_TEXT, t));
+				// s[1] = number of links with this string
+				if (Integer.valueOf(s[1]) < MINIMUM_MENTIONS)
+					continue;
+				cands.clear();
+				counters.clear();
+				for (int j = 2; j < s.length; ++j) {
+					final int postfix = s[j].lastIndexOf(':');
+					final int v = Integer.parseInt(s[j].substring(postfix + 1));
+					String key = s[j].substring(0, postfix);
+					counters.adjustOrPutValue(key, v, v);
+					cands.add(key);
+				}
 				ScoreDoc[] docs = searcher.search(pq, 10000).scoreDocs;
 				if (docs.length < MINIMUM_MENTIONS)
 					continue; // Too rare.
 				int minsupp = Math.max(MINIMUM_MENTIONS, docs.length / 10);
 				for (int i = 0; i < docs.length; ++i) {
 					Document d = searcher.doc(docs[i].doc);
-					String dtitle = d
-							.get(LuceneWikipediaIndexer.LUCENE_FIELD_TITLE);
-					Collection<String> lis = links.get(dtitle);
-					if (lis == null)
+					// String dtitle = d
+					// .get(LuceneWikipediaIndexer.LUCENE_FIELD_TITLE);
+					String[] lis = d.get(
+							LuceneWikipediaIndexer.LUCENE_FIELD_LINKS).split(
+							"\t");
+					if (lis.length == 0)
 						// System.err.format("No links for %s.\n", dtitle);
 						continue;
-					for (String l : lis)
-						counters.count(l);
+					// Odd positions are link targets:
+					for (int j = 1; j < lis.length; j += 2)
+						counters.count(lis[j]);
 				}
-				System.out.append(s[0]);
-				System.out.format("\t%d", docs.length);
+				buf.delete(0, buf.length()); // clear
+				buf.append(s[0]);
+				buf.append('\t').append(docs.length);
+				boolean output = false;
 				for (CounterSet.Entry<String> c : counters.descending()) {
 					final int count = c.getCount();
 					if (count < minsupp)
 						break;
 					if (count / 4 > minsupp) // Increase cutoff
 						minsupp = count / 4;
-					System.out.format(Locale.ENGLISH, "\t%s:%d:%.3f",
-							c.getKey(), count, count / (double) docs.length);
+					if (!cands.contains(c.getKey()))
+						continue; // Was not a candidate.
+					int conf = (int)(count * 100. / docs.length);
+					buf.append('\t').append(c.getKey());
+					buf.append(':').append(count);
+					buf.append(':').append(conf).append('%');
+					output = true;
 				}
-				System.out.println();
-				counters.clear();
+				if (output)
+					System.out.println(buf);
 			}
 		}
 		searcher.close();
-	}
-
-	static class Counter implements Comparable<Counter> {
-		int count = 0;
-		final String target;
-
-		public Counter(String target) {
-			this.target = target;
-		}
-
-		@Override
-		public int compareTo(Counter o) {
-			return count > o.count ? -1 : count < o.count ? +1 : 0;
-		}
 	}
 
 	private Map<String, String> loadRedirects(String nam) throws IOException {
@@ -114,30 +116,6 @@ public class AnalyzeLinks {
 			}
 		}
 		return redirects;
-	}
-
-	private Map<String, Collection<String>> loadLinks(String nam,
-			Map<String, String> redirects) throws IOException {
-		int c = 0;
-		HashMap<String, Collection<String>> links = new HashMap<>();
-		Set<String> l = new HashSet<>();
-		try (InputStream in = Util.openInput(nam);
-				BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
-			String line;
-			while ((line = r.readLine()) != null) {
-				String[] s = line.split("\t");
-				for (int i = 1; i < s.length; i++) {
-					String targ = redirects.get(s[i]);
-					l.add(targ != null ? targ : unique.addOrGet(s[i]));
-				}
-				links.put(unique.addOrGet(s[0]), new ArrayList<>(l));
-				l.clear();
-				++c;
-				if (c % 1000000 == 0)
-					System.err.format("Loading links %d...\n", c);
-			}
-		}
-		return links;
 	}
 
 	public static void main(String[] args) {
