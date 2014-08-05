@@ -41,9 +41,11 @@ you a BibTeX snippet!
 
 The source code here is made available for your to understand and reproduce the
 results as necessary. But hopefully, you will not need to run it yourself.
-To run this, you will need about 30 GB of disk space and 16 GB of RAM. The first
-step takes two hours on a modern PC; it produces 1.2 GB of link data, and a
-14 GB Lucene index. 66 MB of frequent link text and 120 MB of redirect information.
+To run this, you will need about 30 GB of disk space and 24 GB of RAM. The first
+step takes one hour on a modern multicore PC; it produces 1.2 GB of link data,
+and a 14 GB Lucene index. 66 MB of frequent link text and 120 MB of redirect
+information. The second phase then takes about 45 minutes, and yields 5-10 MB
+of entities depending on your thresholds.
 
 We try to keep output data compressed. When dealing with large volume data,
 this quickly pays off: text compresses very well, often to 20% or less. The
@@ -80,13 +82,13 @@ Example:
 
     obamacare\t	88\t	Patient Protection and Affordable Care Act:87
 
-The second phase will then return a file containing common phrases, and their most common outcomes:
+The second phase will then return a file containing common phrases, and their most common outcomes.
+We report the number of articles the text was found in, and a score for each target. For the score,
+we count how often the exact link text occurred + the number of articles that linked to the article
+in question that contained the query phrase somewhere. This puts double weight on cases where the
+link text is exactly the phrase, and thus the score can go up to 200%.
 
-    obamacare\t	251 \
-    \t	Patient Protection and Affordable Care Act:195:0.777 \
-    \t	Republican Party (United States):113:0.450 \
-    \t	United States House of Representatives:107:0.426
-    \t	Barack Obama:100:0.398
+    obamacare\t	313\t	Patient Protection and Affordable Care Act:216:69%
 
 If there is a clear association with the first term, and a much less clear with
 the second, then we can be rather sure this is a synonymous term, i.e.
@@ -94,11 +96,10 @@ Obamacare == Patient Protected and Affordable Care Act.
 
 But beware, there are language specific pitfalls. For example
 
-    bayern\t	3731\t	FC Bayern Munich:2167:0.581 ... Bavaria:566:0.152
+    bayern\t	4392\t	FC Bayern Munich:743:16%\t	Bavaria:713:16%
 
-yet, "Bayern" is in fact the german name of the state of Bavaria.
-It is specific to English wikipedia that this term is mostly used in
-conjunction with the soccer club FC Bayern.
+indicates that the term "Bayern" (German name of Bavaria) is also
+very often referring to the soccer club FC Bayern (in the English Wikipedia).
 
 
 Processing Wikipedia Data
@@ -138,25 +139,27 @@ wrapped into more efficient implementations.
 We are using a streaming XML parser, as you cannot just build a DOM tree from
 a 10 GB compressed (48.7 GB decompressed) file...
 
-Note: this implementation may need 16 GB of RAM to run, because we keep all the
-page titles and links in memory. This could be reduced by storing the outgoing
-links in the Lucene index, for example, or doing multiple passes (e.g. to resolve
-redirects).
+Note: this implementation may need 24 GB of RAM to run, because we keep a lot of
+data in memory, and sort it at the very end when writing. By splitting the process
+into a third (sorting) phase, memory usage could be reduced. But given the size of
+the Lucene index (15 GB), extra memory will also improve runtimes a lot.
 
 
 Dependencies
 ------------
 
-While I'm not a big fan of external libraries, we use a few of them in this project:
+While the use of external libraries yields to a mess in many projects ("jar
+hell"), we rely a few of them in this project:
 
 * Apache Commons Lang3, despire the performance issues, for parsing HTML entities
+(but we wrote our own, much faster, matcher)
 
 * Apache Commons Compress, for BZip2 decompression
 
 * Lucene 3.6, for full text indexing
 
 * GNU Trove 3, which offers high-performance collections for primitive types
-
+(and helps keeping memory usage in control).
 
 
 License
@@ -167,7 +170,10 @@ unhappy. You should never need to incorporate this source code into a commercial
 product, but if you need we can talk about this. Note that GNU Trove is LGPL
 licensed.
 
-Copyleft is a viable way. The best proof is called Linux. Companies trying to
-persuade you to choose Apache and BSD licenses often just want to be able to
-incorporate all your work and not give back ever; this defeats the purpose
-for anything but low-level libraries.
+Copyleft is a viable way for collaborative software development. The best proof
+is called Linux. Companies trying to persuade you to choose Apache and BSD
+licenses often just want to be able to incorporate all your work and not give
+back ever; this defeats the purpose for anything but low-level libraries.
+
+This is "tit for that"-ware. Because I make my code available, you should also
+make your improvements available.

@@ -265,7 +265,8 @@ public class ParseWikipedia {
 			throw new Error("At least 1 consumer must be allowed!");
 		}
 		try {
-			List<Thread> t = new ArrayList<>();
+			List<Thread> threads = new ArrayList<>();
+
 			BlockingQueue<Article> q1 = new ArrayBlockingQueue<>(100);
 			ParseWikipedia l = new ParseWikipedia();
 			// Start the reader:
@@ -277,7 +278,7 @@ public class ParseWikipedia {
 			LinkCollector lc = new LinkCollector(Config.get("links.output"));
 			LuceneLinkTokenizer lt = new LuceneLinkTokenizer(
 					Config.get("linktext.output"), r);
-			t.add(reader);
+			threads.add(reader);
 			System.err.println("Starting " + par + " worker threads.");
 			for (int i = 0; i < par; i++) {
 				HandlerList h = new HandlerList(), h2 = new HandlerList();
@@ -286,14 +287,14 @@ public class ParseWikipedia {
 				h.add(indexer.makeThreadHandler(h2));
 				h2.add(lc.makeThreadHandler());
 				h2.add(lt.makeThreadHandler());
-				t.add(a);
+				threads.add(a);
 			}
 
 			// Start all:
-			for (Thread th : t)
+			for (Thread th : threads)
 				th.start();
 			// Wait for all:
-			for (Thread th : t)
+			for (Thread th : threads)
 				try {
 					th.join();
 				} catch (InterruptedException e) {

@@ -38,6 +38,19 @@ public class Progress {
 		this.start = this.prev = System.currentTimeMillis();
 	}
 
+	/**
+	 * Constructor, with initial reporting step size.
+	 * 
+	 * @param label
+	 *            Name of this progress logger.
+	 * @param step
+	 *            Initial reporting step size.
+	 */
+	public Progress(String label, int step) {
+		this(label);
+		this.step = step;
+	}
+
 	/** Thread-safe increment */
 	public void incrementAndLog() {
 		final int c = counter.incrementAndGet();
