@@ -2,10 +2,10 @@ package com.github.kno10.wikipediaentities;
 
 import gnu.trove.map.hash.TObjectIntHashMap;
 import gnu.trove.procedure.TObjectIntProcedure;
+import gnu.trove.set.hash.THashSet;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -18,27 +18,25 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.wikipedia.WikipediaTokenizer;
 import org.apache.lucene.util.Version;
 
+import com.github.kno10.wikipediaentities.util.CounterSet;
+import com.github.kno10.wikipediaentities.util.FastStringReader;
+import com.github.kno10.wikipediaentities.util.Util;
+
 /**
  * Tokenize link texts seen in Wikipedia, to build a list of common link titles.
  * Count how often each target occurs.
  * 
  * @author Erich Schubert
  */
-public class LuceneLinkTokenizer extends AbstractHandler {
-	/** Lucene Wikipedia tokenizer */
-	WikipediaTokenizer tokenizer;
+public class LuceneLinkTokenizer {
+	/** Link text -> map(target -> count) */
+	Map<String, CounterSet<String>> links = new HashMap<>();
 
-	/** Filtered token stream */
-	TokenStream stream;
-
-	/** Lucene character term attribute */
-	CharTermAttribute termAtt;
+	/** Articles that really exist */
+	private THashSet<String> articles = new THashSet<>();
 
 	/** Output file name */
 	private String out;
-
-	/** Link text -> map(target -> count) */
-	Map<String, CounterSet<String>> links = new HashMap<>();
 
 	/** Minimum support to report */
 	static final int MINSUPP = 3;
@@ -46,9 +44,6 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	/** Filter to only retain links with minimum support */
 	private CounterSet.CounterFilter popularityFilter = new CounterSet.CounterFilter(
 			MINSUPP);
-
-	/** Articles that really exist */
-	private Unique<String> articles = new Unique<>();
 
 	/** Redirect collector */
 	private RedirectCollector r;
@@ -62,61 +57,98 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	 *            Redirect collector
 	 */
 	public LuceneLinkTokenizer(String out, RedirectCollector r) {
-		tokenizer = new WikipediaTokenizer(null);
-		stream = tokenizer;
-		// stream = new PorterStemFilter(tokenizer);
-		stream = new ClassicFilter(stream);
-		stream = new LowerCaseFilter(Version.LUCENE_36, stream);
-		termAtt = stream.addAttribute(CharTermAttribute.class);
 		this.out = out;
 		this.r = r;
 	}
 
-	@Override
-	public void rawArticle(String title, String text) {
-		articles.addOrGet(title);
+	/**
+	 * Make handler for a single thread.
+	 * 
+	 * @return Threadsafe handler.
+	 */
+	public Handler makeThreadHandler() {
+		return new LinkHandler();
 	}
 
-	StringBuilder buf = new StringBuilder();
+	class LinkHandler extends AbstractHandler {
+		/** Link text -> map(target -> count) */
+		Map<String, CounterSet<String>> links = new HashMap<>();
+		/** Articles that really exist */
+		private THashSet<String> articles = new THashSet<>();
+		/** Lucene Wikipedia tokenizer */
+		WikipediaTokenizer tokenizer;
+		/** Filtered token stream */
+		TokenStream stream;
+		/** Lucene character term attribute */
+		CharTermAttribute termAtt;
 
-	@Override
-	public void linkDetected(String title, String label, String target) {
-		// Normalize the link text.
-		try {
-			buf.delete(0, buf.length());
-			tokenizer.reset(new StringReader(label));
-			stream.reset();
-			while (stream.incrementToken()) {
-				if (termAtt.length() <= 0)
-					continue;
-				if (buf.length() > 0)
-					buf.append(' ');
-				buf.append(termAtt.buffer(), 0, termAtt.length());
+		@Override
+		public void rawArticle(String title, String text) {
+			articles.add(title);
+		}
+
+		/** Buffer for tokenization */
+		StringBuilder buf = new StringBuilder();
+
+		public LinkHandler() {
+			tokenizer = new WikipediaTokenizer(null);
+			stream = tokenizer;
+			// stream = new PorterStemFilter(tokenizer);
+			stream = new ClassicFilter(stream);
+			stream = new LowerCaseFilter(Version.LUCENE_36, stream);
+			termAtt = stream.addAttribute(CharTermAttribute.class);
+		}
+
+		@Override
+		public void linkDetected(String title, String label, String target) {
+			// Normalize the link text.
+			try {
+				buf.delete(0, buf.length());
+				tokenizer.reset(new FastStringReader(label));
+				stream.reset();
+				while (stream.incrementToken()) {
+					if (termAtt.length() <= 0)
+						continue;
+					if (buf.length() > 0)
+						buf.append(' ');
+					buf.append(termAtt.buffer(), 0, termAtt.length());
+				}
+				if (buf.length() == 0)
+					return;
+				label = buf.toString();
+				CounterSet<String> seen = links.get(label);
+				if (seen == null) {
+					seen = new CounterSet<>();
+					links.put(label, seen);
+				}
+				seen.count(target);
+			} catch (IOException e) { // Should never happen in FastStringReader
+				e.printStackTrace();
 			}
-			if (buf.length() == 0)
-				return;
-			label = buf.toString();
-			CounterSet<String> seen = links.get(label);
-			if (seen == null) {
-				seen = new CounterSet<>();
-				links.put(label, seen);
+		}
+
+		@Override
+		public void close() {
+			synchronized (LuceneLinkTokenizer.this) {
+				Map<String, CounterSet<String>> plinks = LuceneLinkTokenizer.this.links;
+				for (Map.Entry<String, CounterSet<String>> e : links.entrySet()) {
+					CounterSet<String> pset = plinks.get(e.getKey());
+					if (pset == null) {
+						plinks.put(e.getKey(), e.getValue());
+					} else {
+						pset.update(e.getValue());
+					}
+				}
+				links = null;
+				LuceneLinkTokenizer.this.articles.addAll(articles);
+				articles = null;
 			}
-			seen.count(target);
-		} catch (IOException e) {
-			e.printStackTrace();
 		}
 	}
 
-	@Override
-	public void close() {
+	public void close() throws IOException {
 		System.err.format("Closing %s output.\n", getClass().getSimpleName());
-		PrintStream writer = null;
-		try {
-			writer = Util.openOutput(out);
-		} catch (IOException e) {
-			e.printStackTrace();
-			System.exit(1);
-		}
+		PrintStream writer = Util.openOutput(out);
 		// We sort everything here. This is expensive, but makes the output
 		// files nicer to use in the future.
 		ArrayList<String> keys = new ArrayList<>(links.keySet());
@@ -180,7 +212,7 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 	public static final class FilterBySet implements
 			TObjectIntProcedure<Object> {
 		/** Acceptance set */
-		Unique<String> accept;
+		THashSet<String> accept;
 
 		/**
 		 * Constructor
@@ -188,7 +220,7 @@ public class LuceneLinkTokenizer extends AbstractHandler {
 		 * @param accept
 		 *            Entries to accept.
 		 */
-		public FilterBySet(Unique<String> accept) {
+		public FilterBySet(THashSet<String> accept) {
 			this.accept = accept;
 		}
 

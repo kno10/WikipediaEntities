@@ -17,6 +17,10 @@ import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.store.FSDirectory;
 
+import com.github.kno10.wikipediaentities.util.CounterSet;
+import com.github.kno10.wikipediaentities.util.Unique;
+import com.github.kno10.wikipediaentities.util.Util;
+
 public class AnalyzeLinks {
 	private static final int MINIMUM_MENTIONS = 25;
 

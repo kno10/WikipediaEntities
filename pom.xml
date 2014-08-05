@@ -21,7 +21,7 @@
 				<version>1.3</version>
 				<configuration>
 					<useAllProjectDependencies>true</useAllProjectDependencies>
-					<extraJvmArguments>-Xmx16G</extraJvmArguments>
+					<extraJvmArguments>-Xmx22G</extraJvmArguments>
 					<programs>
 						<program>
 							<mainClass>com.github.kno10.wikipediaentities.ParseWikipedia</mainClass>

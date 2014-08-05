@@ -1,19 +1,19 @@
-package com.github.kno10.wikipediaentities;
+package com.github.kno10.wikipediaentities.util;
 
-import gnu.trove.impl.hash.TObjectHash;
-
-import java.util.Arrays;
+import gnu.trove.set.hash.THashSet;
 
 /**
  * This hash set is designed to keep only a unique copy of each object (hence
  * its name). For this, the method {@link #addOrGet} is the key API, which
- * allows retrieving existing values.
+ * allows retrieving existing values. This is quite similar to {@link THashSet},
+ * but it allows accessing the existing value.
  * 
  * @author Erich Schubert
  *
  * @param <E>
+ *            Value type
  */
-public class Unique<E> extends TObjectHash<E> {
+public class Unique<E> extends THashSet<E> {
 	/**
 	 * Serial version number.
 	 */
@@ -69,48 +69,5 @@ public class Unique<E> extends TObjectHash<E> {
 
 		postInsertHook(consumeFreeSlot);
 		return obj;
-	}
-
-	/**
-	 * Removes an existing object from the set.
-	 *
-	 * @param obj
-	 *            Object to remove
-	 * @return true if the object was found and removed.
-	 */
-	public boolean remove(Object obj) {
-		int index = index(obj);
-		if (index >= 0) {
-			removeAt(index);
-			return true;
-		}
-		return false;
-	}
-
-	@Override
-	public void clear() {
-		super.clear();
-
-		Arrays.fill(_set, 0, _set.length, FREE);
-	}
-
-	@SuppressWarnings("unchecked")
-	@Override
-	protected void rehash(int newCapacity) {
-		final int oldCapacity = _set.length, oldSize = size();
-		// Replace data storage:
-		Object oldSet[] = _set;
-		_set = new Object[newCapacity];
-		Arrays.fill(_set, FREE);
-
-		// Reinsert all objects:
-		for (int i = oldCapacity; i-- > 0;) {
-			E o = (E) oldSet[i];
-			if (o != FREE && o != REMOVED) {
-				insertKey(o);
-			}
-		}
-		// Last check: size before and after should be the same
-		reportPotentialConcurrentMod(size(), oldSize);
 	}
 }

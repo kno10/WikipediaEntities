@@ -1,4 +1,4 @@
-package com.github.kno10.wikipediaentities.stringutil;
+package com.github.kno10.wikipediaentities.util;
 
 import java.io.IOException;
 import java.util.Arrays;

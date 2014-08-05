@@ -1,4 +1,4 @@
-package com.github.kno10.wikipediaentities;
+package com.github.kno10.wikipediaentities.util;
 
 import java.io.BufferedInputStream;
 import java.io.FileInputStream;
@@ -16,8 +16,6 @@ import org.apache.commons.compress.compressors.CompressorException;
 import org.apache.commons.compress.compressors.CompressorStreamFactory;
 import org.apache.commons.lang3.StringEscapeUtils;
 import org.apache.commons.lang3.text.translate.EntityArrays;
-
-import com.github.kno10.wikipediaentities.stringutil.PrefixTreeMatcher;
 
 /**
  * Utility functions.

@@ -1,4 +1,4 @@
-package com.github.kno10.wikipediaentities;
+package com.github.kno10.wikipediaentities.util;
 
 import gnu.trove.iterator.TObjectIntIterator;
 import gnu.trove.map.hash.TObjectIntHashMap;
@@ -167,4 +167,16 @@ public class CounterSet<O> extends TObjectIntHashMap<O> {
 		}
 	}
 
+	/**
+	 * Merge second counter set.
+	 * 
+	 * @param other
+	 *            Other set of counters.
+	 */
+	public void update(CounterSet<O> other) {
+		for (TObjectIntIterator<O> it = other.iterator(); it.hasNext();) {
+			it.advance();
+			adjustOrPutValue(it.key(), it.value(), it.value());
+		}
+	}
 }
