@@ -15,6 +15,9 @@ gathered some more experience with this data myself. Maybe I will run into
 a shortcoming or limitation, and do another revision.
 
 
+For information on the file format, see README.md in the main project.
+
+
 For information and copyright of the original data, please go to:
 
 https://en.wikipedia.org/wiki/Wikipedia:Copyrights

@@ -18,6 +18,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
 
 import com.github.kno10.wikipediaentities.util.CounterSet;
@@ -149,7 +150,8 @@ public class AnalyzeLinks {
 				counters.adjustOrPutValue(key, v, v);
 				cands.add(key);
 			}
-			ScoreDoc[] docs = searcher.search(pq, 10000).scoreDocs;
+			TopDocs res = searcher.search(pq, 10000);
+			ScoreDoc[] docs = res.scoreDocs;
 			if (docs.length < MINIMUM_MENTIONS) {
 				cand.query = null; // Flag as dead.
 				return; // Too rare.
@@ -170,7 +172,7 @@ public class AnalyzeLinks {
 			}
 			buf.delete(0, buf.length()); // clear
 			buf.append(s[0]);
-			buf.append('\t').append(docs.length);
+			buf.append('\t').append(res.totalHits);
 			boolean output = false;
 			for (CounterSet.Entry<String> c : counters.descending()) {
 				final int count = c.getCount();
@@ -180,7 +182,7 @@ public class AnalyzeLinks {
 					minsupp = count / 4;
 				if (!cands.contains(c.getKey()))
 					continue; // Was not a candidate.
-				int conf = (int) (count * 100. / docs.length);
+				int conf = (int) (count * 100. / res.totalHits);
 				buf.append('\t').append(c.getKey());
 				buf.append(':').append(count);
 				buf.append(':').append(conf).append('%');
