@@ -156,9 +156,9 @@ hell"), we rely a few of them in this project:
 
 * Apache Commons Compress, for BZip2 decompression
 
-* Lucene 3.6, for full text indexing
+* Lucene 5, for full text indexing
 
-* GNU Trove 3, which offers high-performance collections for primitive types
+* Fastutil, which offers high-performance collections for primitive types
 (and helps keeping memory usage in control).
 
 

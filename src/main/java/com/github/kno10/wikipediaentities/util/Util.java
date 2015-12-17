@@ -19,15 +19,15 @@ import org.apache.commons.lang3.text.translate.EntityArrays;
 
 /**
  * Utility functions.
- * 
+ *
  * @author Erich Schubert
  */
 public class Util {
 	/**
 	 * Open an output stream.
-	 * 
+	 *
 	 * When the output file name is {@code null}, stdout will be used.
-	 * 
+	 *
 	 * @param out
 	 *            Output file name
 	 * @return Output stream
@@ -70,9 +70,9 @@ public class Util {
 	 * {@link StringEscapeUtils#unescapeHtml4(String)} is unbearably slow.
 	 * Unfortunately, it also insists on using the {@link Writer} interface,
 	 * which enforces synchronization.
-	 * 
+	 *
 	 * TODO: we ignore the possibility of UTF-16 codepoints...
-	 * 
+	 *
 	 * @param text
 	 *            Text to process
 	 * @return Text with entities replaced
@@ -119,7 +119,7 @@ public class Util {
 
 	/**
 	 * Open a file, choosing a decompressor if necessary.
-	 * 
+	 *
 	 * @param fname
 	 *            Filename to open
 	 * @return Input stream
@@ -131,7 +131,7 @@ public class Util {
 		InputStream fin = new FileInputStream(fname);
 		try {
 			BufferedInputStream bis = new BufferedInputStream(fin);
-			return new CompressorStreamFactory()
+			return new CompressorStreamFactory(true)
 					.createCompressorInputStream(bis);
 		} catch (CompressorException e) {
 			return fin;
