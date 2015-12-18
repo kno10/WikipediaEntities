@@ -5,7 +5,7 @@ import java.util.Collection;
 
 /**
  * Meta handler that proxies the events to everybody on the list.
- * 
+ *
  * @author Erich Schubert
  */
 public class HandlerList implements Handler {
@@ -13,21 +13,21 @@ public class HandlerList implements Handler {
 	Collection<Handler> handlers = new ArrayList<>();
 
 	@Override
-	public void redirect(String title, String redirect, String anchor) {
+	public void redirect(String prefix, String title, String redirect, String anchor) {
 		for (Handler h : handlers)
-			h.redirect(title, redirect, anchor);
+			h.redirect(prefix, title, redirect, anchor);
 	}
 
 	@Override
-	public void rawArticle(String title, String text) {
+	public void rawArticle(String prefix, String title, String text) {
 		for (Handler h : handlers)
-			h.rawArticle(title, text);
+			h.rawArticle(prefix, title, text);
 	}
 
 	@Override
-	public void linkDetected(String title, String label, String target) {
+	public void linkDetected(String prefix, String title, String label, String target) {
 		for (Handler h : handlers)
-			h.linkDetected(title, label, target);
+			h.linkDetected(prefix, title, label, target);
 	}
 
 	@Override
@@ -38,7 +38,7 @@ public class HandlerList implements Handler {
 
 	/**
 	 * Add a sub-handler to this handler.
-	 * 
+	 *
 	 * @param h
 	 *            Handler.
 	 */

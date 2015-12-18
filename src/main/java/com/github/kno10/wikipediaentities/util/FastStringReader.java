@@ -5,34 +5,52 @@ import java.io.Reader;
 
 /**
  * Fast implementation of the {@link Reader} API for Strings.
- * 
+ *
  * Avoids locking.
- * 
+ *
  * @author Erich Schubert
  */
 public class FastStringReader extends Reader {
-	String text;
-	int p, r;
+  /** Text to retrieve */
+  CharSequence text;
 
-	public FastStringReader(String text) {
-		this.text = text;
-		this.p = 0;
-		this.r = text.length();
-	}
+  /** Position and remaining */
+  int p, r;
 
-	@Override
-	public int read(char[] cbuf, int off, int len) throws IOException {
-		int c = len < r ? len : r; // Number of characters to copy
-		if (c == 0)
-			return -1;
-		text.getChars(p, p + c, cbuf, off);
-		p += c; // Position
-		r -= c; // Remaining
-		return c;
-	}
+  public FastStringReader(CharSequence text) {
+    this.text = text;
+    this.p = 0;
+    this.r = text.length();
+  }
 
-	@Override
-	public void close() throws IOException {
-		// ignore.
-	}
+  public Reader reset(CharSequence text) {
+    this.text = text;
+    this.p = 0;
+    this.r = text.length();
+    return this;
+  }
+
+  @Override
+  public int read(char[] cbuf, int off, int len) throws IOException {
+    int c = len < r ? len : r; // Number of characters to copy
+    if(c == 0)
+      return -1;
+    if(text instanceof String) {
+      ((String) text).getChars(p, p + c, cbuf, off);
+      p += c; // Position
+      r -= c; // Remaining
+    }
+    else {
+      r -= c;
+      while(c-- > 0) {
+        cbuf[off++] = text.charAt(p++);
+      }
+    }
+    return c;
+  }
+
+  @Override
+  public void close() throws IOException {
+    text = null;
+  }
 }

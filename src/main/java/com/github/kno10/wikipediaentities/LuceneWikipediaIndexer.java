@@ -15,8 +15,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.wikipedia.WikipediaTokenizer;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -84,7 +83,7 @@ public class LuceneWikipediaIndexer {
     private Matcher stripTemplates = Pattern.compile("\\{\\{([^}{]*?)\\}\\}").matcher("");
 
     /** Match links, which are not nested. */
-    private Matcher linkMatcher = Pattern.compile("\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:\\s*\\|\\s*([^\\]\\[\\#]*))?\\s*\\]\\]").matcher("");
+    private Matcher linkMatcher = Pattern.compile("\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:(?:\\s*\\|\\s*[^\\]\\[\\#\\|]*)*\\s*\\|([^\\]\\[\\#\\|]+))?\\s*\\]\\]").matcher("");
 
     /** More cruft to remove */
     private Matcher stripCruft = Pattern.compile("(?:<ref(?:[^<]*</ref|\\s+name\\s*=\\s*[^<]*|[^<]*/>)>|\\{\\|(.*?)\\|\\}|^ *\\*+|\\[\\[(?:([^\\]\\[]*)\\s*\\|\\s*)?([^\\]\\[]*)\\]\\])", Pattern.CASE_INSENSITIVE).matcher("");
@@ -101,7 +100,7 @@ public class LuceneWikipediaIndexer {
     public IndexHandler(Handler handler) {
       Set<String> skip = new HashSet<>();
       skip.add(WikipediaTokenizer.EXTERNAL_LINK_URL);
-      tokenizer = new WikipediaTokenizer(null, WikipediaTokenizer.TOKENS_ONLY, skip);
+      tokenizer = new WikipediaTokenizer(WikipediaTokenizer.TOKENS_ONLY, skip);
       stream = tokenizer;
       stream = new ClassicFilter(stream); // Removes 's etc
       stream = new LowerCaseFilter(stream);
@@ -111,8 +110,10 @@ public class LuceneWikipediaIndexer {
 
     StringBuilder buf = new StringBuilder();
 
+    FastStringReader reader = new FastStringReader("");
+
     @Override
-    public void rawArticle(String title, String intext) {
+    public void rawArticle(String prefix, String title, String intext) {
       CharSequence text = intext;
       // System.err.print(title + ": ");
       stripBasics.reset(text);
@@ -137,18 +138,23 @@ public class LuceneWikipediaIndexer {
             continue; // Internal link.
           }
           targ = Util.normalizeLink(targ);
-          if(targ == null) {
+          if(targ == null || targ.length() == 0) {
             System.err.println(linkMatcher.group(0));
             continue;
           }
-          if(targ.charAt(0) == ':' || targ.startsWith("File:") || targ.startsWith("Wikisource:") || targ.startsWith("Wikipedia:") || targ.startsWith("Commons:") || targ.startsWith("Image:"))
+          final String[] spl = targ.split(":");
+          String targl = spl.length > 0 ? spl[0].trim() : targ;
+          if(targ.charAt(0) == ':' || "file".equalsIgnoreCase(targl) || "wikisource".equalsIgnoreCase(targl) //
+          || "wikipedia".equalsIgnoreCase(targl) || "commons".equalsIgnoreCase(targl) || "image".equalsIgnoreCase(targl)//
+          || "fichier".equalsIgnoreCase(targl) || "datei".equalsIgnoreCase(targl) || "bild".equalsIgnoreCase(targl) //
+          || "archivo".equalsIgnoreCase(targl) || "imagen".equalsIgnoreCase(targl))
             continue;
           String labl = linkMatcher.group(2);
           if(labl == null)
             labl = targ;
           labl = labl.replace('\n', ' ').trim();
           if(targ != null && addLink(targ, labl))
-            handler.linkDetected(title, labl != null ? labl : targ, targ);
+            handler.linkDetected(prefix, title, labl != null ? labl : targ, targ);
 
           buf.append(labl);
           pos = linkMatcher.end();
@@ -161,11 +167,12 @@ public class LuceneWikipediaIndexer {
 
       try {
         Document doc = new Document();
-        doc.add(new StringField(LUCENE_FIELD_TITLE, title, Field.Store.YES));
-        doc.add(new StringField(LUCENE_FIELD_LINKS, serializeLinks(), Field.Store.YES));
+        doc.add(new StoredField(LUCENE_FIELD_TITLE, prefix + title));
+        doc.add(new StoredField(LUCENE_FIELD_LINKS, serializeLinks()));
 
-        tokenizer.setReader(new FastStringReader(text.toString()));
+        tokenizer.reset();
         stream.reset();
+        tokenizer.setReader(reader.reset(text));
         doc.add(new TextField(LUCENE_FIELD_TEXT, stream));
         index.addDocument(doc);
       }
@@ -175,7 +182,7 @@ public class LuceneWikipediaIndexer {
       }
       clearLinks();
 
-      handler.rawArticle(title, intext);
+      handler.rawArticle(prefix, title, intext);
     }
 
     ArrayList<String> links = new ArrayList<>();

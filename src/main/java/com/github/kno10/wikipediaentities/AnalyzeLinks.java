@@ -27,6 +27,8 @@ import com.github.kno10.wikipediaentities.util.Progress;
 import com.github.kno10.wikipediaentities.util.Unique;
 import com.github.kno10.wikipediaentities.util.Util;
 
+import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+
 public class AnalyzeLinks {
   private static final int MINIMUM_MENTIONS = 20;
 
@@ -105,7 +107,7 @@ public class AnalyzeLinks {
   Object monitor = new Object();
 
   private class WorkerThread extends Thread {
-    CounterSet<String> counters = new CounterSet<>();
+    Object2IntOpenHashMap<String> counters = new Object2IntOpenHashMap<>();
 
     HashSet<String> cands = new HashSet<>();
 
@@ -171,13 +173,13 @@ public class AnalyzeLinks {
           continue;
         // Odd positions are link targets:
         for(int j = 1; j < lis.length; j += 2)
-          counters.count(lis[j]);
+          counters.addTo(lis[j], 1);
       }
       buf.delete(0, buf.length()); // clear
       buf.append(s[0]);
       buf.append('\t').append(res.totalHits);
       boolean output = false;
-      for(CounterSet.Entry<String> c : counters.descending()) {
+      for(CounterSet.Entry<String> c : CounterSet.descending(counters)) {
         final int count = c.getCount();
         if(count < minsupp)
           break;

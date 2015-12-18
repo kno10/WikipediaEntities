@@ -13,29 +13,15 @@ import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
  *
  * @author Erich Schubert
  */
-public class CounterSet<O> extends Object2IntOpenHashMap<O> {
-  /**
-   * Serialization version.
-   */
-  private static final long serialVersionUID = 1L;
-
-  /**
-   * Count an object occurence.
-   *
-   * @param obj Object
-   */
-  public void count(O obj) {
-    addTo(obj, 1);
-  }
-
+public class CounterSet {
   /**
    * Get a descending list of counted items.
    *
    * @return List of items.
    */
-  public List<Entry<O>> descending() {
-    ArrayList<Entry<O>> copy = new ArrayList<>(size());
-    for(Iterator<Object2IntMap.Entry<O>> iter = object2IntEntrySet().fastIterator(); iter.hasNext();) {
+  public static <O> List<Entry<O>> descending(Object2IntOpenHashMap<O> counters) {
+    ArrayList<Entry<O>> copy = new ArrayList<>(counters.size());
+    for(Iterator<Object2IntMap.Entry<O>> iter = counters.object2IntEntrySet().fastIterator(); iter.hasNext();) {
       // Note: fast iterator will recycle this object!
       Object2IntMap.Entry<O> entry = iter.next();
       copy.add(new Entry<O>(entry.getKey(), entry.getIntValue()));
@@ -135,10 +121,10 @@ public class CounterSet<O> extends Object2IntOpenHashMap<O> {
    *
    * @param other Other set of counters.
    */
-  public void update(CounterSet<O> other) {
-    for(Iterator<Object2IntMap.Entry<O>> iter = object2IntEntrySet().fastIterator(); iter.hasNext();) {
+  public static <O> void update(Object2IntOpenHashMap<O> first, Object2IntOpenHashMap<O> second) {
+    for(Iterator<Object2IntMap.Entry<O>> iter = second.object2IntEntrySet().fastIterator(); iter.hasNext();) {
       Object2IntMap.Entry<O> entry = iter.next();
-      addTo(entry.getKey(), entry.getIntValue());
+      second.addTo(entry.getKey(), entry.getIntValue());
     }
   }
 }
