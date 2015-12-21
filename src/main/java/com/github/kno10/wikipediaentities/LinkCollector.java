@@ -46,7 +46,7 @@ public class LinkCollector {
       if(!prefix.equals(curp) || !title.equals(cur))
         nextEntry(prefix, title);
       targets.add(label.replace('\t', ' '));
-      targets.add((prefix + target).replace('\t', ' '));
+      targets.add(target.replace('\t', ' '));
     }
 
     /**

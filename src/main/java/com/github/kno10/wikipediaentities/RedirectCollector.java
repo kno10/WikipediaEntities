@@ -63,7 +63,7 @@ public class RedirectCollector {
   }
 
   public void close() throws IOException {
-    transitiveClosure();
+    //transitiveClosure();
     System.err.format("Closing %s output.\n", getClass().getSimpleName());
     PrintStream writer = Util.openOutput(out);
     for(String title : redirects.keySet())

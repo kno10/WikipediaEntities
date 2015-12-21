@@ -265,6 +265,7 @@ public class ParseWikipedia {
     if(par < 1) {
       throw new Error("At least 1 consumer must be allowed!");
     }
+    LuceneWikipediaIndexer indexer = null;
     try {
       List<Thread> threads = new ArrayList<>();
 
@@ -277,7 +278,7 @@ public class ParseWikipedia {
         threads.add(reader);
       }
       RedirectCollector r = new RedirectCollector(Config.get("redirects.output"));
-      LuceneWikipediaIndexer indexer = new LuceneWikipediaIndexer(Config.get("indexer.dir"));
+      indexer = new LuceneWikipediaIndexer(Config.get("indexer.dir"));
       LinkCollector lc = new LinkCollector(Config.get("links.output"));
       LuceneLinkTokenizer lt = new LuceneLinkTokenizer(Config.get("linktext.output"));
       System.err.println("Starting " + par + " worker threads.");

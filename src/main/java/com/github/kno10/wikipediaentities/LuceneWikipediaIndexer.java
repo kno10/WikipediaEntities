@@ -83,7 +83,9 @@ public class LuceneWikipediaIndexer {
     private Matcher stripTemplates = Pattern.compile("\\{\\{([^}{]*?)\\}\\}").matcher("");
 
     /** Match links, which are not nested. */
-    private Matcher linkMatcher = Pattern.compile("\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:(?:\\s*\\|\\s*[^\\]\\[\\#\\|]*)*\\s*\\|([^\\]\\[\\#\\|]+))?\\s*\\]\\]").matcher("");
+    // too much backtracking: private Matcher linkMatcher =
+    // Pattern.compile("\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:(?:\\s*\\|\\s*[^\\]\\[\\#\\|]*)*\\s*\\|([^\\]\\[\\#\\|]+))?\\s*\\]\\]").matcher("");
+    private Matcher linkMatcher = Pattern.compile("\\[\\[\\s*([^\\]\\[\\|]*?)(?:\\s*#.*?)?(?:\\s*\\|(?:[^\\]\\[\\#\\|]*\\|)?\\s*([^\\]\\[\\#\\|]+))?\\s*\\]\\]").matcher("");
 
     /** More cruft to remove */
     private Matcher stripCruft = Pattern.compile("(?:<ref(?:[^<]*</ref|\\s+name\\s*=\\s*[^<]*|[^<]*/>)>|\\{\\|(.*?)\\|\\}|^ *\\*+|\\[\\[(?:([^\\]\\[]*)\\s*\\|\\s*)?([^\\]\\[]*)\\]\\])", Pattern.CASE_INSENSITIVE).matcher("");
@@ -95,13 +97,12 @@ public class LuceneWikipediaIndexer {
      * Constructor
      *
      * @param handler Handlers for detected links.
-     * @throws IOException on errors opening the lucene index
+     * @throws IOException on errors opening the Lucene index
      */
     public IndexHandler(Handler handler) {
       Set<String> skip = new HashSet<>();
       skip.add(WikipediaTokenizer.EXTERNAL_LINK_URL);
-      tokenizer = new WikipediaTokenizer(WikipediaTokenizer.TOKENS_ONLY, skip);
-      stream = tokenizer;
+      stream = tokenizer = new WikipediaTokenizer(WikipediaTokenizer.TOKENS_ONLY, skip);
       stream = new ClassicFilter(stream); // Removes 's etc
       stream = new LowerCaseFilter(stream);
       stream.addAttribute(CharTermAttribute.class);
@@ -126,7 +127,7 @@ public class LuceneWikipediaIndexer {
         text = text2;
       }
       { // Parse, and replace links with their text only:
-        buf.delete(0, buf.length()); // clear
+        buf.setLength(0); // clear
         int pos = 0;
         linkMatcher.reset(text);
         while(linkMatcher.find()) {
@@ -153,8 +154,9 @@ public class LuceneWikipediaIndexer {
           if(labl == null)
             labl = targ;
           labl = labl.replace('\n', ' ').trim();
-          if(targ != null && addLink(targ, labl))
-            handler.linkDetected(prefix, title, labl != null ? labl : targ, targ);
+          targ = prefix + targ;
+          if(addLink(targ, labl))
+            handler.linkDetected(prefix, title, labl, targ);
 
           buf.append(labl);
           pos = linkMatcher.end();
@@ -187,24 +189,25 @@ public class LuceneWikipediaIndexer {
 
     ArrayList<String> links = new ArrayList<>();
 
-    boolean addLink(String title, String label) {
+    boolean addLink(String target, String label) {
       // There won't be that many duplicates for a hash map to pay off
       for(int i = 0, l = links.size(); i < l; i += 2) {
-        if(links.get(i).equals(title) && links.get(i + 1).equals(label)) {
+        if(links.get(i).equals(target) && links.get(i + 1).equals(label)) {
           return false; // Already in the document
         }
       }
-      links.add(title);
+      links.add(target);
       links.add(label);
       return true;
     }
 
     String serializeLinks() {
-      StringBuilder buf = new StringBuilder();
-      for(String s : links) {
-        if(buf.length() > 0)
+      buf.setLength(0);
+      for(int i = 0; i < links.size(); i++) {
+        if(i > 0) {
           buf.append('\t');
-        buf.append(s);
+        }
+        buf.append(links.get(i));
       }
       return buf.toString();
     }
@@ -221,6 +224,7 @@ public class LuceneWikipediaIndexer {
 
   public void close() throws IOException {
     System.err.format("Closing %s output.\n", getClass().getSimpleName());
+    index.commit();
     index.close();
   }
 }

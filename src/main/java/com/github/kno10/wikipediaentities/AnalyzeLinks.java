@@ -7,7 +7,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.file.FileSystems;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
@@ -28,6 +28,10 @@ import com.github.kno10.wikipediaentities.util.Unique;
 import com.github.kno10.wikipediaentities.util.Util;
 
 import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import it.unimi.dsi.fastutil.objects.Reference2ReferenceOpenHashMap;
 
 public class AnalyzeLinks {
   private static final int MINIMUM_MENTIONS = 20;
@@ -52,6 +56,19 @@ public class AnalyzeLinks {
       throw new Error("At least 1 consumer must be allowed!");
     }
 
+    // String unification, for performance.
+    Unique<String> unique = new Unique<>(50_000_000);
+    // Load Wikidata information:
+    Map<String, String> datamap = loadWikidata(unique, Config.get("wikidata.output"));
+    System.out.format("Read %d wikidata maps.\n", datamap.size());
+    // Load redirects
+    Reference2ReferenceOpenHashMap<String, String> redmap = loadRedirects(unique, Config.get("redirects.output"));
+    System.out.format("Read %d redirects.\n", redmap.size());
+
+    computeClosure(datamap, redmap);
+    System.out.format("computed redirect clouse of %d wikidata maps.\n", datamap.size());
+    redmap = null; // Free.
+
     String nam = Config.get("linktext.output");
     String dir = Config.get("indexer.dir");
     String out = Config.get("entities.output");
@@ -62,7 +79,7 @@ public class AnalyzeLinks {
     ArrayList<Thread> threads = new ArrayList<>();
     threads.add(new OutputThread(out));
     for(int i = 0; i < par; i++)
-      threads.add(new WorkerThread("Worker-" + i));
+      threads.add(new WorkerThread("Worker-" + i, datamap));
 
     // Start all:
     for(Thread th : threads)
@@ -79,6 +96,122 @@ public class AnalyzeLinks {
       }
       catch(InterruptedException e) {
         e.printStackTrace();
+      }
+    }
+  }
+
+  /**
+   * Load wikidata information, i.e. a map WikiDataID to language versions, and
+   * return a map language version to WikiDataID.
+   *
+   * @param unique String unifier
+   * @param fnam File name
+   * @return Map language version to wiki data id.
+   * @throws IOException
+   */
+  private Map<String, String> loadWikidata(Unique<String> unique, String fnam) throws IOException {
+    Map<String, String> m = new Object2ObjectOpenHashMap<>(30_000_000);
+    try (BufferedReader r = new BufferedReader(//
+    new InputStreamReader(Util.openInput(fnam)))) {
+      String line = r.readLine();
+      String[] header = line.split("\t");
+      StringBuilder buf = new StringBuilder();
+      read: while((line = r.readLine()) != null) {
+        String[] cols = line.split("\t");
+        assert (cols.length == header.length);
+        for(int i = 1; i < cols.length; i++) {
+          if(cols[i] == null || cols[i].length() == 0)
+            continue;
+          if(cols[i].startsWith("Category:") || cols[i].startsWith("Kategorie:") || cols[i].startsWith("Catégorie:") || cols[i].startsWith("Categoría:"))
+            continue read;
+        }
+        String nam = null;
+        for(int i = 1; i < cols.length; i++) {
+          if(cols[i] == null || cols[i].length() == 0) {
+            continue;
+          }
+          if(nam == null) {
+            buf.setLength(0);
+            nam = buf.append(cols[0]).append(':').append(cols[i]).toString();
+          }
+          buf.setLength(0);
+          buf.append(header[i]).append(':').append(cols[i]);
+          String prev = m.put(unique.addOrGet(buf.toString()), unique.addOrGet(nam));
+          assert (prev == null);
+        }
+      }
+    }
+    return m;
+  }
+
+  /**
+   * Load the redirects data. Note: we perform string unification, and use a
+   * Reference-based HashMap for performance reasons.
+   *
+   * @param unique String unification
+   * @param fnam File name
+   * @return Hash map of redirects
+   * @throws IOException
+   */
+  private Reference2ReferenceOpenHashMap<String, String> loadRedirects(Unique<String> unique, String fnam) throws IOException {
+    Reference2ReferenceOpenHashMap<String, String> m = new Reference2ReferenceOpenHashMap<>(15_000_000);
+    try (BufferedReader r = new BufferedReader(//
+    new InputStreamReader(Util.openInput(fnam)))) {
+      String line = null;
+      while((line = r.readLine()) != null) {
+        String[] cols = line.split("\t");
+        assert (cols.length == 2);
+        m.put(unique.addOrGet(cols[0]), unique.addOrGet(cols[1]));
+      }
+    }
+    return m;
+  }
+
+  /**
+   * Compute the transitive closure of redirects, to be able to quickly follow a
+   * redirect chain to the final WikiData entry.
+   *
+   * @param datamap Wikidata map (will be modified)
+   * @param redmap Redirection map (read-only)
+   */
+  private void computeClosure(Map<String, String> datamap, Reference2ReferenceOpenHashMap<String, String> redmap) {
+    System.err.println("Computing transitive closure of redirects.");
+    ObjectOpenHashSet<String> seen = new ObjectOpenHashSet<>();
+    // Iterate using a copy to avoid concurrent modification
+    int i = 0;
+    for(ObjectIterator<Reference2ReferenceOpenHashMap.Entry<String, String>> it = redmap.reference2ReferenceEntrySet().fastIterator(); it.hasNext();) {
+      if(++i % 1_000_000 == 0) {
+        System.out.format("Computing closure progress: %d\n", i);
+      }
+      Reference2ReferenceOpenHashMap.Entry<String, String> ent = it.next();
+      String key = ent.getKey(), targ = ent.getValue();
+      assert (targ != null);
+      String next = datamap.get(key);
+      if(next != null) {
+        if(datamap.put(targ, next) == null) {
+          // System.err.format("Warning: WikiData references a redirect: %s > %s
+          // > %s\n", next, key, targ);
+        }
+        continue;
+      }
+      seen.clear();
+      seen.add(key);
+      seen.add(targ);
+      while(true) {
+        next = datamap.get(targ);
+        if(next != null) {
+          datamap.put(key, next);
+          break;
+        }
+        next = redmap.get(targ);
+        if(next == null) {
+          break;
+        }
+        if(!seen.add(next)) {
+          System.err.format("Redirect cycle detected involving %s > %s > %s\n", key, targ, next);
+          break;
+        }
+        targ = next;
       }
     }
   }
@@ -109,12 +242,18 @@ public class AnalyzeLinks {
   private class WorkerThread extends Thread {
     Object2IntOpenHashMap<String> counters = new Object2IntOpenHashMap<>();
 
-    HashSet<String> cands = new HashSet<>();
-
     StringBuilder buf = new StringBuilder();
 
-    public WorkerThread(String name) {
+    Map<String, String> datamap;
+
+    ObjectOpenHashSet<String> dups = new ObjectOpenHashSet<>(),
+        dupsExact = new ObjectOpenHashSet<>();
+
+    static final int EXACT = 0x1_0000;
+
+    public WorkerThread(String name, Map<String, String> datamap) {
       super(name);
+      this.datamap = datamap;
     }
 
     @Override
@@ -138,24 +277,10 @@ public class AnalyzeLinks {
     }
 
     private void analyze(Candidate cand) throws IOException {
-      String[] s = cand.query.split("\t");
       PhraseQuery.Builder pq = new PhraseQuery.Builder();
-      for(String t : s[0].split(" "))
+      for(String t : cand.query.split(" "))
         pq.add(new Term(LuceneWikipediaIndexer.LUCENE_FIELD_TEXT, t));
-      // s[1] = number of links with this string
-      if(Integer.valueOf(s[1]) < MINIMUM_MENTIONS) {
-        cand.query = null; // Flag as dead.
-        return;
-      }
-      cands.clear();
       counters.clear();
-      for(int j = 2; j < s.length; ++j) {
-        final int postfix = s[j].lastIndexOf(':');
-        final int v = Integer.parseInt(s[j].substring(postfix + 1));
-        String key = s[j].substring(0, postfix);
-        counters.addTo(key, v);
-        cands.add(key);
-      }
       TopDocs res = searcher.search(pq.build(), 10000);
       ScoreDoc[] docs = res.scoreDocs;
       if(docs.length < MINIMUM_MENTIONS) {
@@ -165,36 +290,46 @@ public class AnalyzeLinks {
       int minsupp = Math.max(MINIMUM_MENTIONS, docs.length / 10);
       for(int i = 0; i < docs.length; ++i) {
         Document d = searcher.doc(docs[i].doc);
-        // String dtitle = d
-        // .get(LuceneWikipediaIndexer.LUCENE_FIELD_TITLE);
         String[] lis = d.get(LuceneWikipediaIndexer.LUCENE_FIELD_LINKS).split("\t");
-        if(lis.length == 0)
+        if(lis.length == 0) {
+          // String dtitle = d.get(LuceneWikipediaIndexer.LUCENE_FIELD_TITLE);
           // System.err.format("No links for %s.\n", dtitle);
           continue;
-        // Odd positions are link targets:
-        for(int j = 1; j < lis.length; j += 2)
-          counters.addTo(lis[j], 1);
+        }
+        dups.clear();
+        // Even positions are link targets:
+        for(int j = 0; j < lis.length; j += 2) {
+          if(dups.add(lis[j]))
+            counters.addTo(lis[j], 1);
+          if(lis[j + 1].equalsIgnoreCase(cand.query) && dupsExact.add(lis[j]))
+            counters.addTo(lis[j], EXACT); // Double-count
+        }
       }
-      buf.delete(0, buf.length()); // clear
-      buf.append(s[0]);
+      buf.setLength(0); // clear
+      buf.append(cand.query);
       buf.append('\t').append(res.totalHits);
       boolean output = false;
       for(CounterSet.Entry<String> c : CounterSet.descending(counters)) {
-        final int count = c.getCount();
+        final int count = c.getCount() & 0xFFFF;
         if(count < minsupp)
           break;
-        if(count / 4 > minsupp) // Increase cutoff
-          minsupp = count / 4;
-        if(!cands.contains(c.getKey()))
+        if(count >> 2 > minsupp) // Increase cutoff
+          minsupp = count >> 2;
+        String targ = datamap.get(c.getKey());
+        if(targ == null)
           continue; // Was not a candidate.
-        int conf = (int) (count * 100. / res.totalHits);
-        buf.append('\t').append(c.getKey());
+        int countE = c.getCount() >> 16;
+        int conf = (int) ((count + countE) * 50. / res.totalHits);
+        buf.append('\t').append(targ);
         buf.append(':').append(count);
+        buf.append(':').append(countE);
         buf.append(':').append(conf).append('%');
         output = true;
       }
-      if(output)
+      if(output) {
+        // System.err.println(buf.toString());
         cand.matches = buf.toString(); // Flag as good.
+      }
       else
         cand.query = null; // Flag as dead.
       // Wake up writer thread, if waiting.
@@ -274,5 +409,4 @@ public class AnalyzeLinks {
       e.printStackTrace();
     }
   }
-
 }
