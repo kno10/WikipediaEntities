@@ -146,6 +146,8 @@ public class LuceneWikipediaIndexer {
           final String[] spl = targ.split(":");
           String targl = spl.length > 0 ? spl[0].trim() : targ;
           if(targ.charAt(0) == ':' || "file".equalsIgnoreCase(targl) || "wikisource".equalsIgnoreCase(targl) //
+          || "category".equalsIgnoreCase(targl) || "kategorie".equalsIgnoreCase(targl) //
+          || "catégorie".equalsIgnoreCase(targl) || "categoría".equalsIgnoreCase(targl) //
           || "wikipedia".equalsIgnoreCase(targl) || "commons".equalsIgnoreCase(targl) || "image".equalsIgnoreCase(targl)//
           || "fichier".equalsIgnoreCase(targl) || "datei".equalsIgnoreCase(targl) || "bild".equalsIgnoreCase(targl) //
           || "archivo".equalsIgnoreCase(targl) || "imagen".equalsIgnoreCase(targl))

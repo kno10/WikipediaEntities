@@ -2,6 +2,7 @@ package com.github.kno10.wikipediaentities;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Iterator;
 
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
@@ -27,7 +28,14 @@ public class LoadWikiData {
       parser.nextToken();
 
       StringBuilder buf = new StringBuilder();
-      while(parser.getCurrentToken() != JsonToken.END_ARRAY) {
+      buf.append("WikiDataID");
+      for(int i = 0; i < wikis.length; i++) {
+        buf.append('\t').append(wikis[i]);
+      }
+      buf.append('\n');
+      System.out.print(buf.toString());
+
+      lines: while(parser.getCurrentToken() != JsonToken.END_ARRAY) {
         assert (parser.getCurrentToken() == JsonToken.START_OBJECT);
         JsonNode tree = parser.readValueAsTree();
         JsonNode idn = tree.path("id");
@@ -35,19 +43,41 @@ public class LoadWikiData {
           System.err.println("Skipping entry without ID. " + parser.getCurrentLocation().toString());
           continue;
         }
+        // Check for instance-of for list and category pages:
+        JsonNode claims = tree.path("claims");
+        JsonNode iof = claims.path("P31");
+        if(iof.isArray()) {
+          for(Iterator<JsonNode> it = iof.elements(); it.hasNext();) {
+            final JsonNode child = it.next();
+            JsonNode ref = child.path("mainsnak").path("datavalue").path("value").path("numeric-id");
+            if(ref.isInt()) {
+              if(ref.asInt() == 13406463) { // "Wikimedia list article"
+                continue lines;
+              }
+              if(ref.asInt() == 4167836) { // "Wikimedia category article"
+                continue lines;
+              }
+              if(ref.asInt() == 4167410) { // "Wikimedia disambiguation page"
+                continue lines;
+              }
+              // Not reliable: if(ref.asInt() == 14204246) { // "Wikimedia
+              // project page"
+            }
+          }
+        }
         buf.setLength(0);
-        buf.append(tree.path("id").asText());
+        buf.append(idn.asText());
         JsonNode sl = tree.path("sitelinks");
         boolean good = false;
         for(int i = 0; i < wikis.length; i++) {
           JsonNode wln = sl.path(wikis[i]).path("title");
           buf.append('\t');
-          if (wln.isTextual()) {
+          if(wln.isTextual()) {
             buf.append(wln.asText());
             good |= true;
           }
         }
-        if (good) {
+        if(good) {
           buf.append('\n');
           System.out.print(buf.toString());
         }

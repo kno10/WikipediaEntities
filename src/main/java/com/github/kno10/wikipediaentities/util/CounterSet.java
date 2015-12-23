@@ -60,13 +60,26 @@ public class CounterSet {
       return key;
     }
 
-    public int getCount() {
-      return count;
+    public int getSearchCount() {
+      return count & 0xFFFF;
+    }
+
+    public int getExactCount() {
+      return count >>> 16;
+    }
+
+    public int getCombinedCount() {
+      return (count & 0xFFFF) + (count >>> 16);
     }
 
     @Override
     public int compareTo(Entry<O> o) {
-      final int c1 = count, c2 = o.count;
+      //final int c1 = getCombinedCount(), c2 = o.getCombinedCount();
+      int c1 = getExactCount(), c2 = o.getExactCount();
+      if (c1 == c2) {
+        c1 = getSearchCount();
+        c2 = o.getSearchCount();
+      }
       return c1 > c2 ? -1 : c1 < c2 ? +1 : 0;
     }
   }

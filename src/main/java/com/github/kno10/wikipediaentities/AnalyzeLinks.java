@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.file.FileSystems;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -23,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.FSDirectory;
 
 import com.github.kno10.wikipediaentities.util.CounterSet;
+import com.github.kno10.wikipediaentities.util.CounterSet.Entry;
 import com.github.kno10.wikipediaentities.util.Progress;
 import com.github.kno10.wikipediaentities.util.Unique;
 import com.github.kno10.wikipediaentities.util.Util;
@@ -116,14 +118,13 @@ public class AnalyzeLinks {
       String line = r.readLine();
       String[] header = line.split("\t");
       StringBuilder buf = new StringBuilder();
-      read: while((line = r.readLine()) != null) {
+      while((line = r.readLine()) != null) {
         String[] cols = line.split("\t");
         assert (cols.length == header.length);
         for(int i = 1; i < cols.length; i++) {
-          if(cols[i] == null || cols[i].length() == 0)
+          final String title = cols[i];
+          if(title == null || title.length() == 0)
             continue;
-          if(cols[i].startsWith("Category:") || cols[i].startsWith("Kategorie:") || cols[i].startsWith("Catégorie:") || cols[i].startsWith("Categoría:"))
-            continue read;
         }
         String nam = null;
         for(int i = 1; i < cols.length; i++) {
@@ -132,11 +133,11 @@ public class AnalyzeLinks {
           }
           if(nam == null) {
             buf.setLength(0);
-            nam = buf.append(cols[0]).append(':').append(cols[i]).toString();
+            nam = unique.addOrGet(buf.append(cols[0]).append(':').append(cols[i].replace(':', ' ')).toString());
           }
           buf.setLength(0);
           buf.append(header[i]).append(':').append(cols[i]);
-          String prev = m.put(unique.addOrGet(buf.toString()), unique.addOrGet(nam));
+          String prev = m.put(unique.addOrGet(buf.toString()), nam);
           assert (prev == null);
         }
       }
@@ -188,10 +189,13 @@ public class AnalyzeLinks {
       assert (targ != null);
       String next = datamap.get(key);
       if(next != null) {
-        if(datamap.put(targ, next) == null) {
-          // System.err.format("Warning: WikiData references a redirect: %s > %s
-          // > %s\n", next, key, targ);
+        do {
+          if(datamap.put(targ, next) == null) {
+            // System.err.format("Warning: WikiData references a redirect: %s >
+            // %s > %s\n", next, key, targ);
+          }
         }
+        while((targ = redmap.get(targ)) != null);
         continue;
       }
       seen.clear();
@@ -281,13 +285,15 @@ public class AnalyzeLinks {
       for(String t : cand.query.split(" "))
         pq.add(new Term(LuceneWikipediaIndexer.LUCENE_FIELD_TEXT, t));
       counters.clear();
-      TopDocs res = searcher.search(pq.build(), 10000);
+      // Careful: max count must be less than 64k, because we use short counts!
+      TopDocs res = searcher.search(pq.build(), 0xFFFF);
       ScoreDoc[] docs = res.scoreDocs;
       if(docs.length < MINIMUM_MENTIONS) {
         cand.query = null; // Flag as dead.
         return; // Too rare.
       }
       int minsupp = Math.max(MINIMUM_MENTIONS, docs.length / 10);
+      int weight = 0;
       for(int i = 0; i < docs.length; ++i) {
         Document d = searcher.doc(docs[i].doc);
         String[] lis = d.get(LuceneWikipediaIndexer.LUCENE_FIELD_LINKS).split("\t");
@@ -297,34 +303,50 @@ public class AnalyzeLinks {
           continue;
         }
         dups.clear();
+        dupsExact.clear();
         // Even positions are link targets:
+        // Beware: Java "split" loses trailing separators!
+        boolean used = false;
         for(int j = 0; j < lis.length; j += 2) {
-          if(dups.add(lis[j]))
-            counters.addTo(lis[j], 1);
-          if(lis[j + 1].equalsIgnoreCase(cand.query) && dupsExact.add(lis[j]))
-            counters.addTo(lis[j], EXACT); // Double-count
+          final String targ = datamap.get(lis[j]);
+          if(targ != null) {
+            if(dups.add(targ)) {
+              counters.addTo(targ, 1);
+              used = true;
+            }
+            if(j + 1 < lis.length && lis[j + 1].equalsIgnoreCase(cand.query) && dupsExact.add(targ))
+              counters.addTo(targ, EXACT);
+          }
         }
+        if(used)
+          weight++;
       }
-      buf.setLength(0); // clear
-      buf.append(cand.query);
-      buf.append('\t').append(res.totalHits);
       boolean output = false;
-      for(CounterSet.Entry<String> c : CounterSet.descending(counters)) {
-        final int count = c.getCount() & 0xFFFF;
-        if(count < minsupp)
-          break;
-        if(count >> 2 > minsupp) // Increase cutoff
-          minsupp = count >> 2;
-        String targ = datamap.get(c.getKey());
-        if(targ == null)
-          continue; // Was not a candidate.
-        int countE = c.getCount() >> 16;
-        int conf = (int) ((count + countE) * 50. / res.totalHits);
-        buf.append('\t').append(targ);
-        buf.append(':').append(count);
-        buf.append(':').append(countE);
-        buf.append(':').append(conf).append('%');
-        output = true;
+      if(counters.size() > 0) {
+        buf.setLength(0); // clear
+        buf.append(cand.query);
+        buf.append('\t').append(res.totalHits);
+        buf.append('\t').append(weight);
+        List<Entry<String>> sorted = CounterSet.descending(counters);
+        int max = weight;
+        // int max = Math.max(docs.length, sorted.get(0).getCombinedCount());
+        final double norm = Math.log1p(.1 * max);
+        for(CounterSet.Entry<String> c : sorted) {
+          final int count = c.getSearchCount();
+          if(count < minsupp)
+            break;
+          if(count >> 1 > minsupp) // Increase cutoff
+            minsupp = count >> 1;
+          String targ = c.getKey();
+          if(targ == null)
+            continue; // Was not a candidate.
+          int conf = (int) Math.round(Math.log1p(.1 * c.getSearchCount()) / norm * 100.);
+          buf.append('\t').append(targ);
+          buf.append(':').append(c.getSearchCount());
+          buf.append(':').append(c.getExactCount());
+          buf.append(':').append(conf).append('%');
+          output = true;
+        }
       }
       if(output) {
         // System.err.println(buf.toString());
@@ -344,6 +366,9 @@ public class AnalyzeLinks {
         BufferedReader r = new BufferedReader(new InputStreamReader(in))) {
       String line;
       while((line = r.readLine()) != null) {
+        if(line.startsWith("category ")) {
+          continue; // Artifact.
+        }
         try {
           Candidate cand = new Candidate(line);
           proqueue.put(cand);
