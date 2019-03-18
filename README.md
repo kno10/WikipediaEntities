@@ -1,6 +1,8 @@
 Wikipedia Entities and Synonyms
 ===============================
 
+**This is an OLD version from 2016. I cannot and will not give you any assistance in running this anymore. Please refrain from asking me questions on how to rerun this with fresh data or in yet another language, but you are welcome to try on your own.**
+
 Derive named entities and synonyms from Wikipedia.
 
 
